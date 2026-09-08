@@ -1,74 +1,139 @@
-# TODO — Hackathon Submission (Phase 0)
+# TODO — The Complete Build
 
-See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how, **`ROADMAP.md` for
-everything past this file** — this is only the slice that ships for the Fri Sep 11 deadline,
-not the whole product. Deadline: **Fri Sep 11, 2026, 18:00**.
+See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how, `ROADMAP.md` for the
+narrative version of this same scope. This is the full product — every phase below is real
+work on the plan, not a "someday" list.
+
+*Reference only, not a scope boundary: the Event Contracts Hackathon (Somnia × DreamDEX)
+submission deadline is Fri Sep 11, 2026, 18:00. Noted here because it's a real external
+date; it does not determine what's in this list or how it's ordered.*
 
 `[BE]` = Jadon (worker/DB/chain) · `[FE]` = Sam-Rytech (Next.js/wallet/UI) · `[P]` = safe to do in parallel with its neighbors
+
+---
 
 ## Phase 1 — Setup
 
 - [x] `[BE]` Init npm workspaces monorepo — `package.json`, `apps/web/`, `apps/worker/`, `packages/shared/`
-- [x] `[P]` `[FE]` Init Next.js app (TS, Tailwind, App Router) — `apps/web/` *(scaffold only — builds clean, no product UI yet, that's Sam's build)*
-- [x] `[P]` `[BE]` Init worker TS project — `apps/worker/` *(typechecks clean)*
+- [x] `[P]` `[FE]` Init Next.js app (TS, Tailwind, App Router) — `apps/web/`
+- [x] `[P]` `[BE]` Init worker TS project — `apps/worker/`
 - [x] `[P]` `[BE]` Shared domain types — `packages/shared/src/types.ts`
-- [x] `[BE]` Provision Postgres, set `DATABASE_URL` — local Postgres 16 via Homebrew, migrated, all 6 tables live
-- [x] `[BE]` Fund seed-trader wallets from the event testnet faucet — operator + 2 seed wallets generated and funded (50 STT each, verified on-chain)
+- [x] `[BE]` Provision Postgres, set `DATABASE_URL` — local Postgres 16, migrated, 6 tables live
+- [x] `[BE]` Generate + fund operator and seed-trader wallets — 3 wallets, 50 STT each, verified on-chain
 
-## Phase 2 — Foundational (blocks everything below)
+## Phase 2 — Foundational
 
-- [x] `[BE]` DB schema — `apps/worker/src/db/schema.sql` *(written, not yet applied — needs T005 first)*
+- [x] `[BE]` DB schema — `apps/worker/src/db/schema.sql`
 - [x] `[BE]` DB client — `apps/worker/src/db/client.ts`
-- [x] `[BE]` SDK client wired to Shannon testnet + the Event Contracts venue — `apps/worker/src/chain/client.ts` *(venue/cadence confirmed live against real testnet data)*
-- [x] `[BE]` Fill watcher (polling `getUserFills`, not the flaky REST endpoint) — `apps/worker/src/chain/watcher.ts`
+- [x] `[BE]` SDK client wired to Shannon testnet + the Event Contracts venue — `apps/worker/src/chain/client.ts`
+- [x] `[BE]` Fill watcher (`getUserFills` polling, not the flaky REST endpoint) — `apps/worker/src/chain/watcher.ts`
 - [x] `[P]` `[FE]` wagmi/viem config — `apps/web/lib/wagmi.ts`
-- [x] `[P]` `[FE]` Base layout + Tailwind theme scaffold — `apps/web/app/layout.tsx` *(structure only — the real design pass is Sam's, per the design mandate)*
+- [x] `[P]` `[FE]` Base layout + Tailwind theme scaffold — `apps/web/app/layout.tsx`
+- [x] `[BE]` Confirmed integration: worker runs live against real testnet + DB with zero crashes across multiple poll cycles
 
-Both T005 and T006 are now unblocked — DB is live, wallets are funded. Phase 1/2 fully code-complete and typechecked; the worker can be started for real.
-
-**Checkpoint:** ✅ hit. Worker starts clean against real testnet + local Postgres, watcher confirms it's tracking both live 1h markets (BTC, ETH), survives multiple poll cycles with no crash. Nothing product-shaped yet — that's expected, correct.
-
-## Phase 3 — P1 (the demo)
+## Phase 3 — Core Trading Loop
 
 **Backend:**
-- [ ] Seed-trader runner (`ec-maker` + `ec-oracle-follow`) — `apps/worker/src/seeds/runSeedTraders.ts` *(not started — needs the bot kit's exact operator-order call shape confirmed first, see mirror/engine.ts TODO)*
-- [x] Decision recorder on every seed-trader fill — `apps/worker/src/chain/watcher.ts` *(written; unverified against a live DB/real fills — Phase 1 blockers above)*
-- [x] Settlement poller — `apps/worker/src/chain/settlement.ts` *(written; the exact `winningOutcome` YES/NO mapping is a day-1 TODO — no resolved market was observed during the testnet probe to confirm it against)*
-- [x] Calibration engine (retargeted from `delta-agent`) — `apps/worker/src/calibration/engine.ts` *(Brier score done; reliability buckets are P2/T025)*
-- [x] Mirror engine (5-min expiry cutoff, fan out to active `CopyLink`s) — `apps/worker/src/mirror/engine.ts` *(operator-order call CONFIRMED against the SDK's real exports and wired via viem — `BinaryPool.placeBinaryOrderFor`, see FEEDBACK.md. Untested against an actual fill since no seed trader is placing orders yet — that's T013)*
-- [x] Echo settlement — `apps/worker/src/chain/settlement.ts`
+- [ ] `[BE]` Seed-trader runner (`ec-maker` + `ec-oracle-follow`, using the funded seed wallets) — `apps/worker/src/seeds/runSeedTraders.ts`
+- [x] `[BE]` Decision recorder on every seed-trader fill — `apps/worker/src/chain/watcher.ts`
+- [x] `[BE]` Settlement poller — `apps/worker/src/chain/settlement.ts`
+- [x] `[BE]` Calibration engine, retargeted from `delta-agent` (Brier score) — `apps/worker/src/calibration/engine.ts`
+- [x] `[BE]` Mirror engine — confirmed call shape (`BinaryPool.placeBinaryOrderFor` via viem), 5-min expiry cutoff, fan-out to active `CopyLink`s — `apps/worker/src/mirror/engine.ts`
+- [x] `[BE]` Echo settlement — `apps/worker/src/chain/settlement.ts`
 
 **Frontend:**
-- [ ] `[P]` Leaderboard page + API route — `apps/web/app/page.tsx`, `apps/web/app/api/leaderboard/route.ts`
-- [ ] `[P]` Trader profile page + API route — `apps/web/app/traders/[id]/page.tsx`, `apps/web/app/api/traders/[id]/route.ts`
-- [ ] Wallet connect → vault deposit → proxy-grant flow — `apps/web/app/connect/page.tsx`
-- [ ] Copy-follow flow (size fraction, creates `CopyLink`) — `apps/web/app/traders/[id]/copy-button.tsx`
-- [ ] Revoke flow — `apps/web/app/me/page.tsx`
-- [ ] My Echoes page (plain-language outcomes) — `apps/web/app/me/page.tsx`, `apps/web/app/api/me/echoes/route.ts`
+- [ ] `[P]` `[FE]` Leaderboard: ranked traders, sampleCount, "warming up" below 20 — `apps/web/app/page.tsx`, `apps/web/app/api/leaderboard/route.ts`
+- [ ] `[P]` `[FE]` Trader profile: decision history — `apps/web/app/traders/[id]/page.tsx`, `apps/web/app/api/traders/[id]/route.ts`
+- [ ] `[FE]` Wallet connect → vault deposit → proxy-grant flow. **Confirmed call:** `Trader.setOperatorApprovalGlobal({ operator, selectors: [PLACE_ORDER_FOR_SELECTOR, CANCEL_ORDER_FOR_SELECTOR] })` — `apps/web/app/connect/page.tsx`
+- [ ] `[FE]` Copy-follow flow (size fraction, creates `CopyLink`) — `apps/web/app/traders/[id]/copy-button.tsx`, `apps/web/app/api/copy-links/route.ts`
+- [ ] `[FE]` Revoke flow — `apps/web/app/me/page.tsx`, `apps/web/app/api/copy-links/[id]/route.ts`
+- [ ] `[FE]` My Echoes: plain-language settled outcomes — `apps/web/app/me/page.tsx`, `apps/web/app/api/me/echoes/route.ts`
 
-**Checkpoint: P1 demonstrable end to end — record the demo here, don't wait for P2/P3.**
+## Phase 4 — Trust & Transparency
 
-## Phase 4 — P2 (if time allows)
+- [ ] `[BE]` Reliability-bucket computation (confidence-vs-outcome breakdown, not just one Brier number) — `apps/worker/src/calibration/engine.ts`
+- [ ] `[FE]` Reliability diagram + full decision log on trader profile — `apps/web/app/traders/[id]/page.tsx`
+- [ ] `[BE]` Per-follower exposure cap enforcement (across all of a follower's active copies) — `apps/worker/src/mirror/engine.ts`
+- [ ] `[FE]` Exposure cap setting in copy-follow flow — `apps/web/app/traders/[id]/copy-button.tsx`
+- [ ] `[FE]` Pause-without-revoking a copy link (distinct from full revocation) — `apps/web/app/me/page.tsx`, `apps/web/app/api/copy-links/[id]/route.ts`
 
-- [ ] `[BE]` Reliability-bucket computation
-- [ ] `[FE]` Reliability diagram + decision log on trader profile
-- [ ] `[BE]` Per-follower exposure cap
-- [ ] `[FE]` Exposure cap setting in copy-follow flow
+## Phase 5 — Full Trader Ecosystem
 
-## Phase 5 — P3 (stretch, cut first if the calendar slips)
+- [ ] `[BE]` Every cadence, not just 1h — 5m/15m/4h/24h, each with its own latency budget and sample-size threshold — `apps/worker/src/chain/client.ts`, `apps/worker/src/mirror/engine.ts`, `apps/worker/src/calibration/engine.ts`
+- [ ] `[FE]` `[BE]` Copying more than one trader at once — a real multi-`CopyLink` portfolio per follower with per-trader and total exposure caps
+- [ ] `[BE]` Organic-trader discovery: a non-seed wallet that clears the sample threshold gets indexed automatically — `apps/worker/src/seeds/organicDiscovery.ts`
+- [ ] `[FE]` `[BE]` Trader opt-in/consent flow — a real trader chooses to be public and followable rather than being silently indexed; profile + bio
+- [ ] `[BE]` On-chain publishing of calibration scores + tombstones, so other apps/agents can consume Echonome's rankings trustlessly — `apps/worker/src/calibration/publish.ts`
+- [ ] `[FE]` `[BE]` Notifications — a follower learns when their copied trader opens a position, when an echo settles, when a trader goes inactive
 
-- [ ] `[BE]` Organic-trader auto-registration past the sample threshold
-- [ ] `[BE]` On-chain publishing of calibration scores
+## Phase 6 — Reliability & Safety Hardening
 
-## Phase 6 — Submission (not optional, not compressible)
+- [ ] `[BE]` Idempotency on the mirror engine — a unique constraint on `(source_decision_id, copy_link_id)` in `echo`, upsert instead of insert, so a watcher restart or duplicate poll can never double-echo
+- [ ] `[BE]` Reorg handling — a confirmation-depth policy before treating a fill or a settled outcome as final
+- [ ] `[BE]` Partial-fill / failure-path handling — a real `Echo.status = 'failed'` state with a reason code, surfaced to the follower, not just a caught exception and a log line
+- [ ] `[BE]` Rate limiting + a kill switch — a hard cap on echoes-per-minute per operator, and a manual circuit breaker
+- [ ] `[BE]` Real operator-key management — a secrets manager at minimum (Railway secrets), a KMS/HSM-backed signer before this ever touches real value, and a rotation plan
+- [ ] `[BE]` Automated tests: calibration engine unit tests (known inputs → known Brier scores), mirror engine integration tests against a local anvil fork, and a test that tries to move a follower's funds as the operator and asserts it fails (SC-001 as code)
+- [ ] `[BE]` Structured logging + error tracking (Sentry or equivalent) — console logs don't survive a restart
+
+## Phase 7 — Business Model & Compliance
+
+- [ ] Decide the revenue model — performance fee on profitable echoes (the standard copy-trading pattern), flat subscription, or a protocol-level arrangement with DreamDEX/Somnia given the trading volume this generates for them
+- [ ] Regulatory review — copy-trading is a regulated activity in a meaningful number of jurisdictions; determine what "automatically placing trades on someone's behalf, non-custodially" actually triggers before this handles real value
+- [ ] Terms of Service, Privacy Policy, and unavoidable risk disclosure before a follower's first copy (Event Contracts are a leveraged/binary product; copying inherits that risk)
+- [ ] Trader-side terms — what a followed trader is agreeing to: visibility of their trading, no claim on their funds, and any revenue-share terms if one exists
+
+## Phase 8 — Production Infrastructure & Operations
+
+- [ ] `[BE]` Mainnet migration (chain id `5031`) — a deliberate cutover with its own security review and incident-response plan, not a flag flip
+- [ ] `[BE]` Monitoring + alerting — uptime checks, watcher-falling-behind-chain-head alerts, echo-failure-rate alerts
+- [ ] `[BE]` Move from polling onto the SDK's live WebSocket watches (`watchMarket`/`watchUser`) once correctness is proven — polling was a deliberate simplicity choice, not a permanent one
+- [ ] `[BE]` Horizontal scaling of the worker — sharded by market/trader once volume demands it
+- [ ] `[BE]` Database scaling — connection pooling, read replicas, backup + point-in-time-recovery policy
+- [ ] `[FE]` `[BE]` API authentication + rate limiting on the internal API — currently open, fine for a single team, not for a public product
+- [ ] CI/CD — automated typecheck/test/deploy on every push
+
+## Phase 9 — Growth & Platform Maturity
+
+- [ ] Mobile app — a copy-trading product's natural home once the web version is proven
+- [ ] Admin tooling — manage seed traders, investigate a disputed echo, handle a compromised account, see system health at a glance
+- [ ] Docs site — how ranking works, and how to consume the on-chain-published calibration scores (Phase 5)
+- [ ] Multi-asset / multi-venue expansion — beyond BTC/ETH, and beyond DreamDEX if Somnia's Event Contracts ecosystem grows other venues
+- [ ] Marketing site + brand build-out around "Every trade is a sound. Every copy is its echo."
+
+## Phase 10 — Submission Packaging
+
+Deliverables for the DoraHacks submission specifically — a real task group, not the finish line for the whole build.
 
 - [ ] Deploy worker to Railway, verify it stays up
 - [ ] Deploy web to Vercel, verify
 - [ ] `README.md`: what it is, why it needs a chain, how to run it
-- [ ] Demo video (2–3 min) — the P1 path, no dead air, includes trying (and failing) to move a follower's funds as the operator, on camera
+- [ ] Demo video (2–3 min) — the core loop, no dead air, includes trying (and failing) to move a follower's funds as the operator, on camera
 - [ ] DoraHacks submission form
 - [ ] No AI watermark anywhere · commit identity is `jadonamite <jadonamite@gmail.com>`
 
 ---
 
-**If Phase 2 isn't done by end of day Sep 8, cut Phase 5 first** — it's already scoped as stretch. Don't touch Phase 3/4 scope before that.
+## Dependencies
+
+Setup → Foundational → Core Trading Loop (BE and FE lanes run in parallel once Foundational
+lands) → Trust & Transparency → Full Trader Ecosystem, Hardening, and Business/Compliance can
+proceed in parallel once the Core Loop is real → Production Infrastructure once there's real
+usage to scale for → Growth once the platform is stable. Submission Packaging can happen
+whenever the DoraHacks deadline requires a snapshot of whatever's built at that point — it
+does not gate anything else in this list.
+
+## Traceability
+
+| Spec item (`specs/echonome/spec.md`) | Tasks |
+|---|---|
+| FR-001 | Calibration engine, Leaderboard |
+| FR-002 | Chain client (cadence targeting), Seed-trader runner |
+| FR-003 | Wallet connect → proxy-grant flow |
+| FR-004 | Copy-follow flow |
+| FR-005 | Mirror engine |
+| FR-006 | Revoke flow |
+| FR-007 | Wallet connect → proxy-grant flow (design); Hardening's SC-001-as-code test |
+| FR-008 | My Echoes page |
+| FR-009 | Seed-trader runner |
+| FR-010 | Calibration engine, Leaderboard |
