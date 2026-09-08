@@ -3,6 +3,9 @@
 **Event:** Event Contracts Hackathon (Somnia × DreamDEX) · **Deadline:** Fri Sep 11, 2026, 18:00
 **Status:** In build
 
+This document covers the hackathon-scoped product (Phase 0). For the complete product —
+everything Echonome becomes after the hackathon — see `ROADMAP.md`.
+
 ## What this is
 
 Every trade is a sound. Every copy is its echo.

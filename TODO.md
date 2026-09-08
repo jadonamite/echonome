@@ -1,6 +1,8 @@
-# TODO
+# TODO — Hackathon Submission (Phase 0)
 
-See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how. Deadline: **Fri Sep 11, 2026, 18:00**.
+See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how, **`ROADMAP.md` for
+everything past this file** — this is only the slice that ships for the Fri Sep 11 deadline,
+not the whole product. Deadline: **Fri Sep 11, 2026, 18:00**.
 
 `[BE]` = Jadon (worker/DB/chain) · `[FE]` = Sam-Rytech (Next.js/wallet/UI) · `[P]` = safe to do in parallel with its neighbors
 
