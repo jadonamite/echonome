@@ -47,13 +47,26 @@ question phrased as the affirmative/upward condition), not an observed fact. **N
 day-1 verification against a real resolved market** — flag it here if it turns out wrong,
 don't just silently patch it.
 
-## 2026-09-08 — Exact operator-order call shape not directly confirmed
+## 2026-09-08 — RESOLVED: operator-order call is not on the high-level Trader at all
 
-`OperatorPermissionsRegistry`'s `placeOrderFor`/`cancelOrderFor` pattern is documented in the
-bot kit's `docs/session-keys.md`, and the SDK's order-param types carry optional `owner`/
-`operatorId` fields consistent with it — but the precise call wired into `mirror/engine.ts`
-is a best-evidenced placeholder, not yet checked against the bot kit's own `packages/core`
-source. First thing to confirm once seed-trader wiring starts.
+Original guess (`exchange.trader.createOrder(..., { owner })`) was wrong — the unified
+`SomniaMarkets.createOrder`'s `CreateOrderParams` has no `owner` field, full stop. Checked
+the actual `Trader` interface in `trade.d.ts`: no `placeOrderFor` method exists there either.
+
+**The real split, confirmed against the SDK's own runtime exports:**
+- The **grant** (a follower approving Echonome's operator) IS high-level:
+  `Trader.setOperatorApprovalGlobal({ operator, selectors: [PLACE_ORDER_FOR_SELECTOR,
+  CANCEL_ORDER_FOR_SELECTOR], approved: true })`.
+- **Placing an order for that owner is NOT high-level** — it's a raw contract write,
+  `BinaryPool.placeBinaryOrderFor(owner, kind, price, quantity, expireTimestampNs,
+  orderType, selfMatchingOption, builder, builderFeeBpsTimes1k, userData)`. The SDK exports
+  its ABI as `binaryPoolWriteAbi` and the side enum as `ORDER_KIND` (`BUY_YES: 0, SELL_YES: 1,
+  BUY_NO: 2, SELL_NO: 3`) — found by grepping the installed package's exports directly,
+  since neither the docs nor the READMEs show a worked example of this specific call.
+
+Cost: ~30 minutes of reading `.d.ts` files and probing `Object.keys()` on live SDK exports
+to find a function that exists but isn't documented anywhere as a worked example. Fixed in
+`apps/worker/src/mirror/engine.ts`, which now calls it directly via viem.
 
 ---
 

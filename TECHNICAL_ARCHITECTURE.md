@@ -92,7 +92,9 @@ All read from Postgres directly (no separate backend API server — the worker a
 
 1. **Connect wallet** (wagmi) on Shannon testnet.
 2. **Deposit into the user's own DreamDEX vault** — an SDK call, signed by the user's wallet. This is *not* a transfer to Echonome; it's the user funding their own vault on DreamDEX's contracts.
-3. **Grant operator permission** — the user signs a transaction against DreamDEX's `OperatorPermissionsRegistry`, naming Echonome's operator address, scoped to place/cancel orders only. Record the resulting on-chain grant as a `ProxyGrant` row via our API once the transaction confirms.
+3. **Grant operator permission** — the user signs `Trader.setOperatorApprovalGlobal` (or the tighter `setOperatorApprovalForPool`, scoped to one market) from `@somnia-chain/markets-sdk`, naming Echonome's operator address and exactly two selectors: `PLACE_ORDER_FOR_SELECTOR` and `CANCEL_ORDER_FOR_SELECTOR` (both exported constants from the SDK — pass only these two, nothing else, so the operator can never call anything but place/cancel). Record the resulting on-chain grant as a `ProxyGrant` row via our API once the transaction confirms.
+
+   **Confirmed, not guessed** (checked against the SDK's own runtime exports 2026-09-08): this grant call is a normal high-level `Trader` method — no raw ABI needed on the frontend. The *echo itself*, on the worker side, is lower-level: `BinaryPool.placeBinaryOrderFor(owner, kind, price, quantity, ...)`, a raw contract write the SDK's high-level `Trader.placeOrder` does not expose. See `apps/worker/src/mirror/engine.ts` for the exact call.
 4. Everything after this is a database write (`CopyLink` create/delete) — no further signing required from the user until they want to revoke, which is also just a contract call against the same registry (instant, user-initiated).
 
 **Do not build any flow where our backend holds, requests, or transmits a user's private key or seed phrase.** The entire pitch depends on this being physically impossible, not just a policy.

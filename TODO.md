@@ -24,7 +24,7 @@ See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how. Deadline: **Fri 
 
 Both T005 and T006 are now unblocked — DB is live, wallets are funded. Phase 1/2 fully code-complete and typechecked; the worker can be started for real.
 
-**Checkpoint:** DB live, watcher sees real fills, wallet connects. Nothing product-shaped yet.
+**Checkpoint:** ✅ hit. Worker starts clean against real testnet + local Postgres, watcher confirms it's tracking both live 1h markets (BTC, ETH), survives multiple poll cycles with no crash. Nothing product-shaped yet — that's expected, correct.
 
 ## Phase 3 — P1 (the demo)
 
@@ -33,7 +33,7 @@ Both T005 and T006 are now unblocked — DB is live, wallets are funded. Phase 1
 - [x] Decision recorder on every seed-trader fill — `apps/worker/src/chain/watcher.ts` *(written; unverified against a live DB/real fills — Phase 1 blockers above)*
 - [x] Settlement poller — `apps/worker/src/chain/settlement.ts` *(written; the exact `winningOutcome` YES/NO mapping is a day-1 TODO — no resolved market was observed during the testnet probe to confirm it against)*
 - [x] Calibration engine (retargeted from `delta-agent`) — `apps/worker/src/calibration/engine.ts` *(Brier score done; reliability buckets are P2/T025)*
-- [x] Mirror engine (5-min expiry cutoff, fan out to active `CopyLink`s) — `apps/worker/src/mirror/engine.ts` *(structure done; the actual operator-order call is a placeholder pending the bot kit source check noted in the file)*
+- [x] Mirror engine (5-min expiry cutoff, fan out to active `CopyLink`s) — `apps/worker/src/mirror/engine.ts` *(operator-order call CONFIRMED against the SDK's real exports and wired via viem — `BinaryPool.placeBinaryOrderFor`, see FEEDBACK.md. Untested against an actual fill since no seed trader is placing orders yet — that's T013)*
 - [x] Echo settlement — `apps/worker/src/chain/settlement.ts`
 
 **Frontend:**
