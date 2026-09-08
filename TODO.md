@@ -68,13 +68,13 @@ date; it does not determine what's in this list or how it's ordered.*
 
 ## Phase 6 — Reliability & Safety Hardening
 
-- [ ] `[BE]` Idempotency on the mirror engine — a unique constraint on `(source_decision_id, copy_link_id)` in `echo`, upsert instead of insert, so a watcher restart or duplicate poll can never double-echo
+- [x] `[BE]` Idempotency — real unique indexes, not app-level races: `(trader_id, fill_id)` on `decision`, `(copy_link_id, source_decision_id)` on `echo`, both enforced with `ON CONFLICT ... DO NOTHING` at the query site — `apps/worker/src/db/schema.sql`, `chain/watcher.ts`, `mirror/engine.ts`
 - [ ] `[BE]` Reorg handling — a confirmation-depth policy before treating a fill or a settled outcome as final
-- [ ] `[BE]` Partial-fill / failure-path handling — a real `Echo.status = 'failed'` state with a reason code, surfaced to the follower, not just a caught exception and a log line
-- [ ] `[BE]` Rate limiting + a kill switch — a hard cap on echoes-per-minute per operator, and a manual circuit breaker
+- [x] `[BE]` Partial-fill / failure-path handling — real `echo.status = 'failed'` + `failure_reason` column, populated on every caught error (order revert, rate limit) instead of just a log line — `apps/worker/src/mirror/engine.ts`
+- [x] `[BE]` Rate limiting + a kill switch — 20 echoes/min sliding-window cap, `MIRROR_KILL_SWITCH` env var short-circuits all echoing — `apps/worker/src/mirror/engine.ts`
 - [ ] `[BE]` Real operator-key management — a secrets manager at minimum (Railway secrets), a KMS/HSM-backed signer before this ever touches real value, and a rotation plan
-- [ ] `[BE]` Automated tests: calibration engine unit tests (known inputs → known Brier scores), mirror engine integration tests against a local anvil fork, and a test that tries to move a follower's funds as the operator and asserts it fails (SC-001 as code)
-- [ ] `[BE]` Structured logging + error tracking (Sentry or equivalent) — console logs don't survive a restart
+- [x] `[BE]` Automated tests — 16 passing (`npm test` in `apps/worker`): calibration engine (known inputs → known Brier scores), the exact side-mapping bug that crashed the watcher live, tick-price rounding. **Live, real-testnet SC-001/SC-005 proof** (`npm run verify:custody`) is half-done: no-grant-blocks is PROVEN on-chain; the grant step itself is blocked on a missing registry address — see FEEDBACK.md 🚧
+- [x] `[BE]` Structured logging — JSON lines with level/component via `apps/worker/src/logger.ts`, wired into `watcher.ts` and `mirror/engine.ts` (the two money-adjacent paths); `seeds/*.ts` and `settlement.ts` still on plain console output. Real error tracking (Sentry or equivalent) needs an account this worker doesn't have — flagged, not built
 
 ## Phase 7 — Business Model & Compliance
 

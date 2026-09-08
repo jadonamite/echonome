@@ -1,5 +1,8 @@
 import { createReadOnlyExchange, isTargetMarket } from "./client.js";
 import { query, queryOne } from "../db/client.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("watcher");
 
 /**
  * Detects new fills for tracked traders on our target markets (1h BTC/ETH, the
@@ -29,7 +32,7 @@ const lastSeen = new Map<string, number>();
  * convention), so SELL_YES/SELL_NO are unexpected but mapped defensively rather than
  * silently dropped.
  */
-function mapBinarySideToOutcome(side: string): "up" | "down" | null {
+export function mapBinarySideToOutcome(side: string): "up" | "down" | null {
   switch (side) {
     case "BUY_YES":
     case "SELL_NO":
@@ -52,7 +55,7 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
       .map((m: any) => m.info.marketId as string)
   );
 
-  console.log(`[watcher] tracking ${targetMarketIds.size} target market(s)`);
+  log.info("tracking target markets", { count: targetMarketIds.size });
 
   const tick = async () => {
     const traders = await query<TrackedTrader>(`SELECT id, address FROM trader`);
@@ -77,30 +80,29 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
 
           const outcome = mapBinarySideToOutcome(rawSide);
           if (!outcome) {
-            console.warn(`[watcher] unmapped side "${rawSide}" on fill ${fill.id} — skipped, not silently guessed`);
+            log.warn("unmapped side, skipped rather than guessed", { side: rawSide, fillId: fill.id });
             continue;
           }
 
-          const existing = await queryOne(
-            `SELECT id FROM decision WHERE trader_id = $1 AND market_id = $2 AND created_at = to_timestamp($3)`,
-            [trader.id, fill.market, Number(fill.timestamp)]
-          );
-          if (existing) continue;
-
+          // Real idempotency, not a SELECT-then-INSERT race: (trader_id, fill_id) is
+          // uniquely indexed (see schema.sql), so a duplicate poll or a watcher restart
+          // hitting the same fill twice is a no-op at the DB level, not application logic
+          // that could lose a race between two ticks.
           const inserted = await queryOne<{ id: string }>(
-            `INSERT INTO decision (trader_id, market_id, side, implied_probability, created_at)
-             VALUES ($1, $2, $3, $4, to_timestamp($5))
+            `INSERT INTO decision (trader_id, market_id, side, implied_probability, fill_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, to_timestamp($6))
+             ON CONFLICT (trader_id, fill_id) WHERE fill_id IS NOT NULL DO NOTHING
              RETURNING id`,
-            [trader.id, fill.market, outcome, Number(fill.fillPrice), Number(fill.timestamp)]
+            [trader.id, fill.market, outcome, Number(fill.fillPrice), fill.id, Number(fill.timestamp)]
           );
 
           if (inserted) {
-            console.log(`[watcher] new decision ${inserted.id} — trader ${trader.address} ${outcome} on ${fill.market}`);
+            log.info("new decision", { decisionId: inserted.id, trader: trader.address, outcome, market: fill.market });
             await onNewDecision(inserted.id);
           }
         } catch (err) {
           // One bad fill must never take the whole watcher down — see FEEDBACK.md.
-          console.error(`[watcher] failed to process fill ${fill.id} for ${trader.address}`, err);
+          log.error("failed to process fill", { fillId: fill.id, trader: trader.address, err: String(err) });
         }
       }
 
@@ -113,6 +115,6 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
 
   await tick();
   setInterval(() => {
-    tick().catch((err) => console.error("[watcher] tick failed", err));
+    tick().catch((err) => log.error("tick failed", { err: String(err) }));
   }, POLL_INTERVAL_MS);
 }

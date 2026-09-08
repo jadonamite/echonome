@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS decision (
   implied_probability  numeric NOT NULL,
   settled_outcome      text CHECK (settled_outcome IN ('up', 'down')),
   resolved_at          timestamptz,
+  fill_id              text, -- the SDK's own fill identity ("${blockNumber}_${logIndex}") — see idempotency block below
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS decision_trader_created_idx ON decision (trader_id, created_at);
@@ -56,9 +57,34 @@ CREATE TABLE IF NOT EXISTS echo (
   market_id           text NOT NULL,
   side                text NOT NULL CHECK (side IN ('up', 'down')),
   size                numeric NOT NULL,
-  status              text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'settled', 'missed')),
+  status              text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'settled', 'missed', 'failed')),
+  failure_reason      text, -- set when status = 'failed' — the revert/error name, not a stack trace
   settled_outcome     text CHECK (settled_outcome IN ('up', 'down')),
   tx_hash             text,
   created_at          timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS echo_copy_link_created_idx ON echo (copy_link_id, created_at);
+
+-- ── Phase 6 hardening migrations (2026-09-08) ──────────────────────────────────────
+-- CREATE TABLE IF NOT EXISTS above is a no-op once a table already exists, so every
+-- column/constraint added after the table's first deploy needs its own explicit ALTER
+-- here — this block is itself the running migration history, not just the end state.
+
+ALTER TABLE echo ADD COLUMN IF NOT EXISTS failure_reason text;
+ALTER TABLE echo DROP CONSTRAINT IF EXISTS echo_status_check;
+ALTER TABLE echo ADD CONSTRAINT echo_status_check CHECK (status IN ('pending', 'settled', 'missed', 'failed'));
+
+-- Idempotency: one echo per (copy_link, source_decision), full stop. A watcher restart,
+-- a duplicate poll, or a retried tick can never double-echo the same trade to the same
+-- follower — the DB itself refuses it, not just application logic.
+CREATE UNIQUE INDEX IF NOT EXISTS echo_copy_link_decision_unique ON echo (copy_link_id, source_decision_id);
+
+-- Same idempotency guarantee one layer up: a fill is a fill, once, PER TRADER — not
+-- globally unique on fill_id alone, because one fill event can legitimately produce two
+-- Decisions (maker + taker) when two of our own tracked traders cross each other, which
+-- already happened live (ec-maker vs ec-oracle-follow triggered SelfMatchCancelTaker —
+-- see FEEDBACK.md). Nullable + a unique index so rows inserted before this column
+-- existed don't break the migration — every new row from the watcher populates it.
+ALTER TABLE decision ADD COLUMN IF NOT EXISTS fill_id text;
+DROP INDEX IF EXISTS decision_fill_id_unique; -- superseded by the composite index below, same migration pass
+CREATE UNIQUE INDEX IF NOT EXISTS decision_trader_fill_unique ON decision (trader_id, fill_id) WHERE fill_id IS NOT NULL;

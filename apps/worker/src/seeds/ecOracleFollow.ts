@@ -18,7 +18,7 @@ const SAMPLE_INTERVAL_MS = 15_000;
 const ORDER_SIZE = 1; // whole outcome tokens — small, testnet-scale
 const PRICE_TICK = 1000n; // price must be a multiple of this — see ecMaker.ts, found live 2026-09-08
 
-function toTickedPrice(humanPrice: number): bigint {
+export function toTickedPrice(humanPrice: number): bigint {
   const raw = BigInt(Math.round(humanPrice * 1e6));
   return (raw / PRICE_TICK) * PRICE_TICK;
 }

@@ -4,6 +4,9 @@ import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { binaryPoolWriteAbi, ORDER_KIND } from "@somnia-chain/markets-sdk";
 import { createReadOnlyExchange } from "../chain/client.js";
 import { query, queryOne } from "../db/client.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("mirror");
 
 /**
  * Places echoes via DreamDEX's raw operator-order path: BinaryPool.placeBinaryOrderFor.
@@ -25,6 +28,28 @@ import { query, queryOne } from "../db/client.js";
 
 const EXPIRY_CUTOFF_MINUTES = 5; // keep in sync with packages/shared/src/types.ts
 const ORDER_TYPE_IOC = 2; // ImmediateOrCancel — execute now against the book or cancel, never rest
+
+// Phase 6 hardening: rate limit + kill switch. Nothing previously stopped a runaway loop
+// (a bug, bad price data, a compromised strategy) from placing far more echoes than
+// intended — see ROADMAP.md. Both are process-local (single worker instance today); a
+// multi-instance deployment needs this moved to a shared store (Redis/Postgres), not
+// in-memory counters.
+const MAX_ECHOES_PER_MINUTE = 20;
+const echoTimestamps: number[] = [];
+
+function rateLimitOk(): boolean {
+  const now = Date.now();
+  while (echoTimestamps.length > 0 && now - echoTimestamps[0] > 60_000) {
+    echoTimestamps.shift();
+  }
+  if (echoTimestamps.length >= MAX_ECHOES_PER_MINUTE) return false;
+  echoTimestamps.push(now);
+  return true;
+}
+
+function killSwitchEngaged(): boolean {
+  return process.env.MIRROR_KILL_SWITCH === "1" || process.env.MIRROR_KILL_SWITCH === "true";
+}
 
 interface DecisionRow {
   id: string;
@@ -52,6 +77,11 @@ function operatorAccount() {
 }
 
 export async function mirrorDecision(decisionId: string): Promise<void> {
+  if (killSwitchEngaged()) {
+    log.warn("MIRROR_KILL_SWITCH engaged, not echoed", { decisionId });
+    return;
+  }
+
   const decision = await queryOne<DecisionRow>(
     `SELECT id, trader_id, market_id, side FROM decision WHERE id = $1`,
     [decisionId]
@@ -62,14 +92,14 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
   await exchange.loadMarkets();
   const market = Object.values(exchange.markets).find((m: any) => m.info?.marketId === decision.market_id) as any;
   if (!market) {
-    console.warn(`[mirror] market ${decision.market_id} not found in live set — skipping`);
+    log.warn("market not found in live set, skipping", { marketId: decision.market_id });
     return;
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
   const expiresIn = Number(market.info.expiry) - nowSec;
   if (expiresIn < EXPIRY_CUTOFF_MINUTES * 60) {
-    console.log(`[mirror] decision ${decision.id}: only ${expiresIn}s left, under the ${EXPIRY_CUTOFF_MINUTES}m cutoff — skipped, not late`);
+    log.info("under expiry cutoff, skipped not late", { decisionId: decision.id, expiresIn, cutoffMinutes: EXPIRY_CUTOFF_MINUTES });
     return;
   }
 
@@ -97,6 +127,17 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
     if (!grant || grant.revoked_at) continue; // SC-005: revoked grants never echo
     if (grant.operator_address.toLowerCase() !== account.address.toLowerCase()) continue;
 
+    if (!rateLimitOk()) {
+      log.error("rate limit hit, copyLink skipped not silently dropped", { maxPerMinute: MAX_ECHOES_PER_MINUTE, copyLinkId: link.id });
+      await queryOne(
+        `INSERT INTO echo (copy_link_id, source_decision_id, market_id, side, size, status, failure_reason)
+         VALUES ($1, $2, $3, $4, $5, 'failed', 'rate_limited')
+         ON CONFLICT (copy_link_id, source_decision_id) DO NOTHING`,
+        [link.id, decision.id, decision.market_id, decision.side, Number(link.size_fraction)]
+      );
+      continue;
+    }
+
     const followerStake = 1; // TODO: replace with the follower's configured base stake (P1 UI, T022)
     const size = followerStake * Number(link.size_fraction);
     const quantity = BigInt(Math.round(size * 10 ** baseDecimals));
@@ -123,15 +164,32 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
       });
       await publicClient.waitForTransactionReceipt({ hash });
 
+      // Idempotency: (copy_link_id, source_decision_id) is uniquely indexed (schema.sql)
+      // — a retry after a crash between the tx confirming and this insert can never
+      // record the same echo twice, even though it could still send a second on-chain
+      // order in that narrow window. The DB-level guarantee stops double-counting; it
+      // doesn't by itself stop double-sending — that's why the watcher only calls this
+      // once per decision (its own insert is idempotent), not a belt-and-suspenders here.
       await queryOne(
         `INSERT INTO echo (copy_link_id, source_decision_id, market_id, side, size, status, tx_hash)
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+         ON CONFLICT (copy_link_id, source_decision_id) DO NOTHING`,
         [link.id, decision.id, decision.market_id, decision.side, size, hash]
       );
 
-      console.log(`[mirror] echoed decision ${decision.id} to follower ${grant.follower_address} (copyLink ${link.id}, tx ${hash})`);
+      log.info("echoed decision", { decisionId: decision.id, follower: grant.follower_address, copyLinkId: link.id, hash });
     } catch (err) {
-      console.error(`[mirror] failed to echo copyLink ${link.id}`, err);
+      // Real failure state, not just a log line — a follower needs to see this, not
+      // just us. errorName (a decoded revert like "ERC20InsufficientBalance") is a useful,
+      // short reason; fall back to the raw message rather than swallowing it silently.
+      const reason = (err as any)?.errorName ?? (err as Error).message ?? "unknown";
+      await queryOne(
+        `INSERT INTO echo (copy_link_id, source_decision_id, market_id, side, size, status, failure_reason)
+         VALUES ($1, $2, $3, $4, $5, 'failed', $6)
+         ON CONFLICT (copy_link_id, source_decision_id) DO NOTHING`,
+        [link.id, decision.id, decision.market_id, decision.side, size, String(reason).slice(0, 500)]
+      );
+      log.error("failed to echo", { copyLinkId: link.id, reason: String(reason) });
     }
   }
 }

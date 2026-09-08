@@ -15,7 +15,7 @@ const PRICE_TICK = 1000n; // BUG FOUND LIVE 2026-09-08: pool reverts InvalidPric
 // price is a multiple of this (raw 1e6-scaled units = 0.001 human price precision,
 // matching the market's own `precision.price = 3`). See FEEDBACK.md.
 
-function toTickedPrice(humanPrice: number): bigint {
+export function toTickedPrice(humanPrice: number): bigint {
   const raw = BigInt(Math.round(humanPrice * 1e6));
   return (raw / PRICE_TICK) * PRICE_TICK;
 }

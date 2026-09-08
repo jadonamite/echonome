@@ -117,6 +117,48 @@ cancels the new (taker) order instead of letting it rest. Non-fatal — caught, 
 continues — but the cancel-refresh logic needs to be more reliably synchronous before this
 strategy is trusted beyond a demo. Tracked for Phase 6 hardening, not blocking the core loop.
 
+## 2026-09-08 — 🚧 OPEN: the operator-registry address for setOperatorApprovalGlobal/ForPool isn't in the SDK's baked-in address book
+
+Half-proven the full proxy-grant lifecycle live against testnet (`npm run verify:custody`,
+`apps/worker/src/testnetVerifyCustody.ts`) and hit a real wall on the grant step itself:
+
+**What's proven, for real, on-chain:** an operator with NO grant calling
+`placeBinaryOrderFor(someOwner, ...)` reverts. Confirmed live. This is half of SC-001.
+
+**What's blocked:** `Trader.setOperatorApprovalGlobal` / `setOperatorApprovalForPool` both
+require `config.addresses.operatorPermissionsRegistry`, which does **not** exist as a field
+in `SOMNIA_TESTNET_ADDRESSES` (confirmed — printed every key, it isn't there). Tried, in
+order:
+- `SOMNIA_TESTNET_ADDRESSES.marketsCore` as the registry address — the call now reaches the
+  contract (no more "not configured" error) but reverts with an **undecoded** reason (no
+  error name, `data: '0x'`) — meaning either `marketsCore` isn't actually the right contract
+  for this specific call, or a precondition we haven't identified is failing.
+- Checked the bot kit's own `scripts/operator-setup.ts` for a worked example — it uses a
+  higher-level wrapper (`grantOperator(fund, pool, operator)`) from their own
+  `@dreamdex-bot-kit/core` package, whose internals aren't visible in that script, so it
+  doesn't reveal the real registry address either.
+- Checked for an on-chain getter (`getOperatorPermissionsRegistry()`) on the pool contract
+  itself — exists in `spotPoolOperatorRegistryReadAbi` but reverts when called on our binary
+  pool (that ABI is spot-specific, doesn't apply to binary pools).
+
+**Working theory, unconfirmed:** DreamDEX's `operatorId` concept (seen throughout market
+metadata, e.g. `market.info.operatorId: 4`) may be a *different* system — venue/market-creator
+registration (`OracleHubAdmin`'s sibling `OperatorAdmin` interface: `registerOperator`,
+`createVenue`, etc.) — from the lightweight "let this bot trade for me" session-key grant our
+product needs. If so, the grant call needs a precondition (operator registration) we haven't
+found documented anywhere.
+
+**Next step, not more guessing:** ask directly in the event's Telegram dev community
+(link in `Hackathons/event-contracts.md`) for the correct `operatorPermissionsRegistry`
+address on Shannon testnet, or the exact worked example DreamDEX uses internally. This is
+exactly the kind of gap the event's own optional "SDK/docs feedback report" deliverable
+exists for — worth including verbatim in the submission.
+
+**Not blocking:** the mirror engine's actual echo-placement code (`mirror/engine.ts`) doesn't
+need this to be *resolved* to be correct — it already assumes a valid grant exists and acts
+accordingly. This only blocks *proving* the grant step live, and blocks T021 (the frontend's
+grant flow) from being wired to a real working call until it's found.
+
 ---
 
 _Add to this file as things come up — don't wait until submission to remember what was hard._
