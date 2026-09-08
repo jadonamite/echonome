@@ -23,9 +23,17 @@ export function brierScore(decisions: ResolvedDecision[]): number {
   if (decisions.length === 0) return NaN;
 
   const squaredErrors = decisions.map((d) => {
-    // impliedProbability is always expressed as P(side==up) at entry — see watcher.ts,
-    // where fillPrice is the YES/Up probability-scaled price. Convert to "P(outcome was up)".
-    const pUp = d.side === "up" ? Number(d.implied_probability) : 1 - Number(d.implied_probability);
+    // `implied_probability` is P(up) directly, for a 'down' decision as much as an 'up'
+    // one — a binary fill's price is always quoted in YES terms no matter which side the
+    // wallet took ("the NO leg enters at the complement", derivedReads.d.ts), and the
+    // watcher stores exactly that. So no side-dependent conversion belongs here.
+    //
+    // BUG FIXED 2026-09-08: this line used to flip to `1 - p` for every 'down' decision,
+    // treating the stored value as "confidence in the side taken". That inverted the
+    // forecast on every down call — a trader who bought NO at a YES price of 0.96 (i.e.
+    // reading the market as 96% up) was being scored as if they had said 4% up. The
+    // comment above this code even stated the correct rule; the code contradicted it.
+    const pUp = Number(d.implied_probability);
     const outcomeUp = d.settled_outcome === "up" ? 1 : 0;
     return (pUp - outcomeUp) ** 2;
   });

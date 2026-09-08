@@ -39,13 +39,33 @@ cadences in parallel, two live markets per cadence (one BTC, one ETH). Built the
 mirror-timing and calibration-sample-size design around this once it was real data instead of
 a guess.
 
-## 2026-09-08 — `winningOutcome` string values undocumented
+## 2026-09-08 — RESOLVED, and it was worse than "undocumented": `winningOutcome` is a NUMBER
 
-No resolved market existed yet during initial testnet exploration, so the settlement
-poller's YES/NO → up/down mapping is a reasoned inference (index 0 = YES, every observed
-question phrased as the affirmative/upward condition), not an observed fact. **Needs
-day-1 verification against a real resolved market** — flag it here if it turns out wrong,
-don't just silently patch it.
+The original entry here said the YES/NO → up/down mapping was a reasoned inference needing
+day-1 verification against a real resolved market. It has now been verified, and the
+verification found a live bug the inference itself had hidden.
+
+**The inference was right.** Index 0 = YES = up, index 1 = NO = down — confirmed against
+real finalized markets, and corroborated by the sibling `payoutNumerators`, which pays the
+winning index and zeroes the other (`winningOutcome: 1` ↔ `payoutNumerators: ["0",
+"10000000"]`). Every question on this venue is phrased affirmatively ("BTC closes at or
+above its opening price"), so YES is definitionally Up.
+
+**The type was wrong, and that broke everything downstream.** `winningOutcome` comes back
+as a numeric outcome *index*, never the strings `"YES"`/`"NO"` the settlement poller was
+comparing against. Nothing errored; every comparison simply returned false, so every
+resolved market looked unresolved. Ninety minutes of live trading, 313 real decisions
+recorded, and **not one was ever settled — so not a single calibration score was ever
+computed.** The product's entire ranking signal was silently dead, and the only symptom was
+an empty table.
+
+Cost: the whole thing was invisible until someone queried the database and asked why
+`settled_outcome` was null on every row. Lesson, and the reason this file exists: a
+polling loop that filters on a value it never validates fails *silently* — no exception, no
+log line, no alert. Assert the shape of an external value at least once against real data,
+especially when a mismatch degrades to "do nothing" rather than to a crash. Guarded now by
+`settlement.test.ts`, including the `Number(null) === 0` trap that would have settled every
+open market as an Up win.
 
 ## 2026-09-08 — RESOLVED: operator-order call is not on the high-level Trader at all
 
@@ -158,6 +178,68 @@ exists for — worth including verbatim in the submission.
 need this to be *resolved* to be correct — it already assumes a valid grant exists and acts
 accordingly. This only blocks *proving* the grant step live, and blocks T021 (the frontend's
 grant flow) from being wired to a real working call until it's found.
+
+## 2026-09-08 — `fill.fillPrice` is raw quote units AND always YES-terms — two bugs from one field
+
+Both halves of this field's contract are documented in the SDK's `.d.ts` files, and the
+fill watcher got both wrong:
+
+1. **Scale.** `fillPrice` is "raw quote units per whole base (binary: YES-probability
+   scale)" (`fills.d.ts`). It was written straight into `decision.implied_probability`
+   unscaled, so 313 live rows held values like `960000` in a column the calibration engine
+   reads as a probability. Fix: divide by `10 ** quoteDecimals` (6 on every market on this
+   venue), plus a `CHECK (implied_probability BETWEEN 0 AND 1)` so the database refuses the
+   mistake rather than storing it.
+
+2. **Frame.** "A binary fill's `fillPrice` is always YES-terms, so the NO leg enters at the
+   complement" (`derivedReads.d.ts`). It is P(up) for a NO buy exactly as much as for a YES
+   buy. The calibration engine assumed it meant "confidence in the side taken" and flipped
+   it to `1 - p` for every `down` decision — inverting the forecast on a third of all rows.
+   A wallet buying NO while YES trades at 0.96 is reading the market as 96% *up*; it was
+   being scored as if it had said 4%.
+
+Cost: neither bug could surface while nothing settled (see the `winningOutcome` entry
+above) — three defects stacked so that the first one hid the other two. Worth saying
+plainly: the calibration engine's own comment described the correct rule while the line
+directly beneath it did the opposite. A comment is not a test.
+
+## 2026-09-08 — CRITICAL: the fill watcher resolved its target markets once, at startup
+
+`watchFills` computed the set of target market ids in its prologue and then polled that
+same frozen list every 10 seconds forever. Event Contracts markets are *cadence-bounded* —
+the 1h BTC/ETH pair we track is replaced by a brand-new pair of market ids on every hour
+boundary. So at the top of the hour the watcher started polling two dead markets and
+recorded nothing at all, for an hour, while the seed traders kept trading normally. No
+error, no warning: `getUserFills` on an expired market is a perfectly valid query that
+returns an empty array.
+
+The seed runner right next to it reloads markets every tick and was always correct; only
+the watcher had the frozen set. Fixed by refreshing the target set every tick, with a
+15-minute retention window on markets that have just left the live set so the last fills on
+an expiring market — which can reach the indexer after expiry — aren't dropped in the
+rollover gap.
+
+## 2026-09-08 — CRITICAL: the seed maker refused to quote into an empty book
+
+`ec-maker` opened with `if (book.bids.length === 0 || book.asks.length === 0) continue`.
+Every Event Contracts market opens with an empty book at its cadence boundary, so from the
+first hourly rollover onward the maker skipped every new market — and `ec-oracle-follow`,
+which needs a mid to compute momentum against, sat out behind it. Two hours of a "live"
+seed fleet placing nothing.
+
+Bootstrapping an empty book is the entire purpose of a seed maker, and a binary market
+with no information in it prices at 0.5 by definition, so an empty book is a mid of 0.5 —
+not a reason to abstain. Fixed with `midFromBook`, which also anchors a one-sided book to
+the side that exists. This bug and the frozen-market-set bug above were mutually masking:
+each one on its own would have produced *some* missing data, and together they produced a
+clean, quiet, total stop.
+
+**The pattern across all four of these, worth stating once:** every failure mode in this
+session degraded to *doing nothing* rather than to an error. A stale market list, an
+unmatched string comparison, and an empty-book guard all look identical from the outside —
+a process that is up, logging nothing, and writing no rows. Uptime is not liveness. The
+monitoring in Phase 8 should alert on *absence* (no new decisions in N minutes, no
+settlements in N hours), not only on thrown errors.
 
 ---
 

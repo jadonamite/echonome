@@ -88,3 +88,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS echo_copy_link_decision_unique ON echo (copy_l
 ALTER TABLE decision ADD COLUMN IF NOT EXISTS fill_id text;
 DROP INDEX IF EXISTS decision_fill_id_unique; -- superseded by the composite index below, same migration pass
 CREATE UNIQUE INDEX IF NOT EXISTS decision_trader_fill_unique ON decision (trader_id, fill_id) WHERE fill_id IS NOT NULL;
+
+-- ── Data-correctness migration (2026-09-08, second hardening pass) ─────────────────
+-- `decision.implied_probability` must be a probability in [0, 1]. It wasn't: the fill
+-- watcher wrote the SDK's RAW `fillPrice` (quote units, 6 decimals on this venue), so
+-- every row recorded during the first live run holds a value like 960000 where 0.96 was
+-- meant. Nothing downstream noticed, because nothing had ever settled — the Brier scores
+-- that would have exposed it were never computed. See FEEDBACK.md.
+--
+-- Backfill is scale-only and self-limiting: a correct row is <= 1 and can never match, so
+-- re-running this migration is a no-op rather than dividing good rows a second time.
+UPDATE decision SET implied_probability = implied_probability / 1000000 WHERE implied_probability > 1;
+
+-- With the data corrected, make the constraint the database's job, not the watcher's.
+-- The whole product ranks traders on these numbers; a silently out-of-range one should
+-- fail loudly at the insert, the way the side check already caught the first live bug.
+ALTER TABLE decision DROP CONSTRAINT IF EXISTS decision_implied_probability_check;
+ALTER TABLE decision ADD CONSTRAINT decision_implied_probability_check
+  CHECK (implied_probability >= 0 AND implied_probability <= 1);

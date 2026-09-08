@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "seed": "tsx src/seeds/runSeedTraders.ts",
-    "migrate": "tsx src/db/migrate.ts",
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "seed": "tsx --env-file=.env src/seeds/runSeedTraders.ts",
+    "migrate": "tsx --env-file=.env src/db/migrate.ts",
     "test": "vitest run",
-    "verify:custody": "tsx src/testnetVerifyCustody.ts"
+    "verify:custody": "tsx --env-file=.env src/testnetVerifyCustody.ts"
   },
   "dependencies": {
     "@echonome/shared": "*",
