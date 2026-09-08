@@ -21,6 +21,27 @@ interface TrackedTrader {
 // Last-seen fill timestamp per trader address, so each poll only asks for new rows.
 const lastSeen = new Map<string, number>();
 
+/**
+ * BUG FOUND LIVE 2026-09-08: the raw SDK side ("BUY_YES"/"SELL_YES"/"BUY_NO"/"SELL_NO")
+ * was being lowercased and inserted directly — violates decision_side_check ('up'/'down'
+ * only) and crashed the entire watcher process on the first real fill. See FEEDBACK.md.
+ * No naked shorts on this venue (confirmed via ec-oracle-follow's own documented
+ * convention), so SELL_YES/SELL_NO are unexpected but mapped defensively rather than
+ * silently dropped.
+ */
+function mapBinarySideToOutcome(side: string): "up" | "down" | null {
+  switch (side) {
+    case "BUY_YES":
+    case "SELL_NO":
+      return "up";
+    case "BUY_NO":
+    case "SELL_YES":
+      return "down";
+    default:
+      return null;
+  }
+}
+
 export async function watchFills(onNewDecision: (decisionId: string) => Promise<void>) {
   const exchange = createReadOnlyExchange();
   await exchange.loadMarkets();
@@ -46,29 +67,40 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
       });
 
       for (const fill of fills) {
-        const side =
-          fill.takerOrder?.owner?.toLowerCase() === trader.address.toLowerCase()
-            ? fill.takerOrder.side
-            : fill.makerSide;
+        try {
+          const rawSide =
+            fill.takerOrder?.owner?.toLowerCase() === trader.address.toLowerCase()
+              ? fill.takerOrder.side
+              : fill.makerSide;
 
-        if (!side) continue; // side not bridged yet — will show up on a later poll
+          if (!rawSide) continue; // side not bridged yet — will show up on a later poll
 
-        const existing = await queryOne(
-          `SELECT id FROM decision WHERE trader_id = $1 AND market_id = $2 AND created_at = to_timestamp($3)`,
-          [trader.id, fill.market, Number(fill.timestamp)]
-        );
-        if (existing) continue;
+          const outcome = mapBinarySideToOutcome(rawSide);
+          if (!outcome) {
+            console.warn(`[watcher] unmapped side "${rawSide}" on fill ${fill.id} — skipped, not silently guessed`);
+            continue;
+          }
 
-        const inserted = await queryOne<{ id: string }>(
-          `INSERT INTO decision (trader_id, market_id, side, implied_probability, created_at)
-           VALUES ($1, $2, $3, $4, to_timestamp($5))
-           RETURNING id`,
-          [trader.id, fill.market, side.toLowerCase(), Number(fill.fillPrice), Number(fill.timestamp)]
-        );
+          const existing = await queryOne(
+            `SELECT id FROM decision WHERE trader_id = $1 AND market_id = $2 AND created_at = to_timestamp($3)`,
+            [trader.id, fill.market, Number(fill.timestamp)]
+          );
+          if (existing) continue;
 
-        if (inserted) {
-          console.log(`[watcher] new decision ${inserted.id} — trader ${trader.address} ${side} on ${fill.market}`);
-          await onNewDecision(inserted.id);
+          const inserted = await queryOne<{ id: string }>(
+            `INSERT INTO decision (trader_id, market_id, side, implied_probability, created_at)
+             VALUES ($1, $2, $3, $4, to_timestamp($5))
+             RETURNING id`,
+            [trader.id, fill.market, outcome, Number(fill.fillPrice), Number(fill.timestamp)]
+          );
+
+          if (inserted) {
+            console.log(`[watcher] new decision ${inserted.id} — trader ${trader.address} ${outcome} on ${fill.market}`);
+            await onNewDecision(inserted.id);
+          }
+        } catch (err) {
+          // One bad fill must never take the whole watcher down — see FEEDBACK.md.
+          console.error(`[watcher] failed to process fill ${fill.id} for ${trader.address}`, err);
         }
       }
 

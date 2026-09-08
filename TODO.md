@@ -34,8 +34,8 @@ date; it does not determine what's in this list or how it's ordered.*
 ## Phase 3 — Core Trading Loop
 
 **Backend:**
-- [ ] `[BE]` Seed-trader runner (`ec-maker` + `ec-oracle-follow`, using the funded seed wallets) — `apps/worker/src/seeds/runSeedTraders.ts`
-- [x] `[BE]` Decision recorder on every seed-trader fill — `apps/worker/src/chain/watcher.ts`
+- [x] `[BE]` Seed-trader runner (`ec-maker` + `ec-oracle-follow`, using the funded seed wallets) — `apps/worker/src/seeds/runSeedTraders.ts`, `ecMaker.ts`, `ecOracleFollow.ts`. **Live and running** — both strategies placing real orders on real 1h BTC/ETH testnet markets, accumulating calibration history right now.
+- [x] `[BE]` Decision recorder on every seed-trader fill — `apps/worker/src/chain/watcher.ts`. **Verified end-to-end against real fills** — found and fixed a crash-on-first-fill bug (wrong side-value mapping), now stable across multiple real decisions with both `up` and `down` sides recorded correctly. See FEEDBACK.md.
 - [x] `[BE]` Settlement poller — `apps/worker/src/chain/settlement.ts`
 - [x] `[BE]` Calibration engine, retargeted from `delta-agent` (Brier score) — `apps/worker/src/calibration/engine.ts`
 - [x] `[BE]` Mirror engine — confirmed call shape (`BinaryPool.placeBinaryOrderFor` via viem), 5-min expiry cutoff, fan-out to active `CopyLink`s — `apps/worker/src/mirror/engine.ts`

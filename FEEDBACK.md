@@ -68,6 +68,55 @@ Cost: ~30 minutes of reading `.d.ts` files and probing `Object.keys()` on live S
 to find a function that exists but isn't documented anywhere as a worked example. Fixed in
 `apps/worker/src/mirror/engine.ts`, which now calls it directly via viem.
 
+## 2026-09-08 — Prices must be tick-aligned; the pool reverts, doesn't round
+
+`InvalidPrice(499500, 1000)` on the very first real order attempt. A price computed with
+plain float math (mid − spread) doesn't land on the pool's price grid (multiples of 1000 raw
+units = 0.001 human precision, matching the market's own `precision.price = 3`). The pool
+reverts rather than silently rounding. Fixed by flooring every price to the nearest tick
+before submission — see `toTickedPrice` in both seed strategies.
+
+## 2026-09-08 — Seed wallets need collateral (tUSDC), not just gas (STT)
+
+Funding wallets with native STT from the event faucet is necessary but not sufficient —
+placing an actual order escrows the ERC-20 collateral token (`tUSDC`), and a wallet with 50
+STT and zero tUSDC reverts with `ERC20InsufficientBalance`. The SDK ships its own
+`trader.faucet()` (mints ~10,000 test USDC directly, no external faucet needed) — used it to
+fund all three wallets. Worth documenting clearly for whoever sets up a wallet next: STT
+alone looks like "funded" but isn't enough to actually trade.
+
+## 2026-09-08 — RPC confirmation can time out on a transaction that still lands
+
+The first `trader.faucet()` call threw a `realtime_sendRawTransaction` timeout — looked like
+a failure. Checked the wallet's on-chain balance directly and the mint had actually gone
+through; only the confirmation round-trip over the WebSocket RPC was slow. Lesson: on a
+timeout, verify on-chain state before assuming the transaction failed and retrying blindly
+(a retry that assumes failure risks a duplicate action if the original actually succeeded).
+
+## 2026-09-08 — CRITICAL, found on the first real fill: wrong side value crashed the entire watcher
+
+The fill watcher stored the SDK's raw `BinarySide` string (`"BUY_YES"`, lowercased to
+`"buy_yes"`) directly into `decision.side`, which only accepts `'up'`/`'down'` — an
+uncaught Postgres check-constraint violation on the very first real trade, which propagated
+all the way up and killed the entire worker process (not just that one insert). The initial
+`await tick()` call also wasn't wrapped in try/catch, so there was nothing between one bad
+row and a full crash.
+
+Fixed: a real `mapBinarySideToOutcome()` mapping (`BUY_YES`/`SELL_NO` → `up`,
+`BUY_NO`/`SELL_YES` → `down`), and every per-fill insert now runs inside its own try/catch so
+one malformed or unexpected fill can never take down the watcher again. This is exactly the
+kind of thing Phase 6 (Reliability & Safety Hardening) in `ROADMAP.md` exists for — found
+here earlier than planned, which is the point of testing against real data instead of trusting
+types alone.
+
+## 2026-09-08 — Maker's own refresh can self-cross (`SelfMatchCancelTaker`)
+
+`ec-maker`'s cancel-and-requote cycle doesn't fully clear its own prior resting order before
+posting a new one in every observed case, so the pool's self-match protection sometimes
+cancels the new (taker) order instead of letting it rest. Non-fatal — caught, logged,
+continues — but the cancel-refresh logic needs to be more reliably synchronous before this
+strategy is trusted beyond a demo. Tracked for Phase 6 hardening, not blocking the core loop.
+
 ---
 
 _Add to this file as things come up — don't wait until submission to remember what was hard._
