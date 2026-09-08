@@ -10,7 +10,8 @@
     "test": "vitest run",
     "verify:custody": "tsx --env-file=.env src/testnetVerifyCustody.ts",
     "verify:operator-gate": "tsx --env-file=.env src/testnetVerifyOperatorGate.ts",
-    "health": "tsx --env-file=.env src/healthCli.ts"
+    "health": "tsx --env-file=.env src/healthCli.ts",
+    "recompute": "tsx --env-file=.env src/recomputeAll.ts"
   },
   "dependencies": {
     "@echonome/shared": "*",

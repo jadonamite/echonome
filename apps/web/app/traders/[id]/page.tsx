@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { MIN_CALIBRATION_SAMPLE } from "@echonome/shared";
 import { getTraderDecisions, getTraderSummary } from "@/lib/queries";
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
+import { ReliabilityDiagram } from "@/components/reliability-diagram";
 import { CopyButton } from "./copy-button";
 import {
   brierVerdict,
@@ -88,6 +89,22 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
           anyway — you just shouldn&apos;t read much into the number yet.
         </p>
       )}
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-medium uppercase tracking-wider text-ink-3">
+            Does their confidence mean anything?
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-2">
+            A single score can call two very different traders the same thing. This is the
+            breakdown behind it: for every level of confidence this trader traded at, how often
+            they were actually right. Points above the dashed line mean they were righter than
+            they claimed; below means they claimed more than they delivered.
+          </p>
+        </div>
+
+        <ReliabilityDiagram buckets={trader.reliability} />
+      </section>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-4">

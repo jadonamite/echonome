@@ -1,5 +1,5 @@
 import { query, queryOne } from "./db";
-import { MIN_CALIBRATION_SAMPLE, type Side, type EchoStatus } from "@echonome/shared";
+import { MIN_CALIBRATION_SAMPLE, type Side, type EchoStatus, type ReliabilityBucket } from "@echonome/shared";
 
 /**
  * Every read this app performs, in one place. Both the API routes under `app/api/*`
@@ -29,6 +29,8 @@ export interface LeaderboardEntry {
   activeFollowers: number;
   lastDecisionAt: string | null;
   computedAt: string | null;
+  /** Confidence-vs-outcome breakdown. Empty until the trader has resolved calls. */
+  reliability: ReliabilityBucket[];
 }
 
 interface LeaderboardRow {
@@ -38,6 +40,7 @@ interface LeaderboardRow {
   is_seed: boolean;
   brier_score: string | null;
   sample_count: string;
+  reliability: ReliabilityBucket[] | null;
   computed_at: Date | null;
   decision_count: string;
   resolved_count: string;
@@ -63,12 +66,15 @@ function toEntry(r: LeaderboardRow): LeaderboardEntry {
     activeFollowers: Number(r.active_followers),
     lastDecisionAt: r.last_decision_at?.toISOString() ?? null,
     computedAt: r.computed_at?.toISOString() ?? null,
+    // pg returns jsonb already parsed; the guard is for the column's '[]' default and for
+    // rows written before the buckets existed.
+    reliability: Array.isArray(r.reliability) ? r.reliability : [],
   };
 }
 
 const LEADERBOARD_SELECT = `
   SELECT t.id, t.address, t.label, t.is_seed,
-         cs.brier_score, COALESCE(cs.sample_count, 0) AS sample_count, cs.computed_at,
+         cs.brier_score, COALESCE(cs.sample_count, 0) AS sample_count, cs.reliability, cs.computed_at,
          s.decision_count, s.resolved_count, s.hit_count, s.last_decision_at,
          COALESCE(f.active_followers, 0) AS active_followers
   FROM trader t
