@@ -42,12 +42,12 @@ date; it does not determine what's in this list or how it's ordered.*
 - [x] `[BE]` Echo settlement — `apps/worker/src/chain/settlement.ts`
 
 **Frontend:**
-- [ ] `[P]` `[FE]` Leaderboard: ranked traders, sampleCount, "warming up" below 20 — `apps/web/app/page.tsx`, `apps/web/app/api/leaderboard/route.ts`
-- [ ] `[P]` `[FE]` Trader profile: decision history — `apps/web/app/traders/[id]/page.tsx`, `apps/web/app/api/traders/[id]/route.ts`
-- [ ] `[FE]` Wallet connect → vault deposit → proxy-grant flow. **Confirmed call:** `Trader.setOperatorApprovalGlobal({ operator, selectors: [PLACE_ORDER_FOR_SELECTOR, CANCEL_ORDER_FOR_SELECTOR] })` — `apps/web/app/connect/page.tsx`
-- [ ] `[FE]` Copy-follow flow (size fraction, creates `CopyLink`) — `apps/web/app/traders/[id]/copy-button.tsx`, `apps/web/app/api/copy-links/route.ts`
-- [ ] `[FE]` Revoke flow — `apps/web/app/me/page.tsx`, `apps/web/app/api/copy-links/[id]/route.ts`
-- [ ] `[FE]` My Echoes: plain-language settled outcomes — `apps/web/app/me/page.tsx`, `apps/web/app/api/me/echoes/route.ts`
+- [x] `[P]` `[FE]` Leaderboard: ranked traders, sampleCount, "warming up" below 20 — `apps/web/app/page.tsx`, `apps/web/app/api/leaderboard/route.ts`. **Live against real data** — both seed traders ranked with real Brier scores, warming-up traders shown rather than hidden, each row carrying a trace of its recent calls.
+- [x] `[P]` `[FE]` Trader profile: decision history — `apps/web/app/traders/[id]/page.tsx`, `apps/web/app/api/traders/[id]/route.ts`. Score, hit rate, full call log with the market price at entry and the settled result.
+- [~] `[FE]` Wallet connect → vault deposit → proxy-grant flow. **Confirmed call:** `Trader.setOperatorApprovalGlobal({ operator, selectors: [PLACE_ORDER_FOR_SELECTOR, CANCEL_ORDER_FOR_SELECTOR] })` — `apps/web/app/connect/page.tsx`. Built and wired to the real SDK call; connect and collateral steps work. **The grant step itself is blocked** on the unknown `operatorPermissionsRegistry` address 🚧 — the page renders an explicit blocked state rather than recording a grant that never happened on chain. Unblocks with one env var, no code change. See FEEDBACK.md.
+- [x] `[FE]` Copy-follow flow (size fraction, creates `CopyLink`) — `apps/web/app/traders/[id]/copy-button.tsx`, `apps/web/app/api/copy-links/route.ts`. Verified end-to-end: creates, updates rather than duplicating a second link to the same trader, rejects an out-of-range size, and refuses to attach to a revoked grant.
+- [x] `[FE]` Revoke flow — `apps/web/app/me/page.tsx`, `apps/web/app/api/copy-links/[id]/route.ts`, `apps/web/app/api/proxy-grants/route.ts`. Two distinct switches, on purpose: stop one copy, or revoke the whole grant (which deactivates every copy under it). Verified: after revoking, a new copy under that grant is refused.
+- [x] `[FE]` My Echoes: plain-language settled outcomes — `apps/web/app/me/page.tsx`, `apps/web/app/api/me/echoes/route.ts`. Every status reads as a sentence, including `failed` with its reason — "nothing happened" is the one outcome a copy-trading product must never leave unexplained.
 
 ## Phase 4 — Trust & Transparency
 
@@ -55,7 +55,7 @@ date; it does not determine what's in this list or how it's ordered.*
 - [ ] `[FE]` Reliability diagram + full decision log on trader profile — `apps/web/app/traders/[id]/page.tsx`
 - [ ] `[BE]` Per-follower exposure cap enforcement (across all of a follower's active copies) — `apps/worker/src/mirror/engine.ts`
 - [ ] `[FE]` Exposure cap setting in copy-follow flow — `apps/web/app/traders/[id]/copy-button.tsx`
-- [ ] `[FE]` Pause-without-revoking a copy link (distinct from full revocation) — `apps/web/app/me/page.tsx`, `apps/web/app/api/copy-links/[id]/route.ts`
+- [x] `[FE]` Pause-without-revoking a copy link (distinct from full revocation) — `apps/web/app/me/page.tsx`, `apps/web/app/api/copy-links/[id]/route.ts`. `PATCH { active }` alongside the `DELETE`; landed with the Phase 3 revoke flow because they are the same control.
 
 ## Phase 5 — Full Trader Ecosystem
 

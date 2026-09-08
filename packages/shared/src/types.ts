@@ -3,7 +3,10 @@
 // there's no codegen step in a 3-day build.
 
 export type Side = "up" | "down";
-export type EchoStatus = "pending" | "settled" | "missed";
+/** Mirrors echo_status_check in apps/worker/src/db/schema.sql. 'failed' is a real,
+ * follower-visible state (a reverted order, a rate-limit skip), not a log line — the
+ * schema gained it in the Phase 6 hardening pass and this type had drifted behind it. */
+export type EchoStatus = "pending" | "settled" | "missed" | "failed";
 
 export interface Trader {
   id: string;
@@ -68,6 +71,8 @@ export interface Echo {
   side: Side;
   size: number;
   status: EchoStatus;
+  /** Set only when status is 'failed' — a decoded revert name or short error, never a stack. */
+  failureReason: string | null;
   settledOutcome: Side | null;
   txHash: string | null;
   createdAt: string;

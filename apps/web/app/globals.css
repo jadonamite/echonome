@@ -1,3 +1,53 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/**
+ * Echonome's palette. Dark by commitment, not by toggle — this is a trading surface,
+ * and the design mandate in TECHNICAL_ARCHITECTURE.md rules out a pure-white ground.
+ *
+ * The ink, surface and status values are the validated dark-mode instance from the
+ * data-viz reference palette: every status colour clears 3:1 on this surface, and the
+ * status four (good / warning / serious / critical) are reserved for state and never
+ * reused as a series colour.
+ */
+:root {
+  color-scheme: dark;
+
+  --plane: #0d0d0d;        /* page ground */
+  --surface: #1a1a19;      /* panels, rows, cards */
+  --surface-raised: #232321;
+  --rule: #2c2c2a;         /* hairline gridline */
+  --edge: #383835;         /* stronger divider / baseline */
+
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --accent: #3987e5;
+}
+
+html,
+body {
+  background: var(--plane);
+  color: var(--ink);
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Columns of figures must align vertically; prose numbers must not. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--accent);
+  color: #ffffff;
+}
