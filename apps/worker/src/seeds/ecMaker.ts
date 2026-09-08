@@ -1,4 +1,7 @@
 import type { SomniaMarkets } from "@somnia-chain/markets-sdk";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("ec-maker");
 
 /**
  * A simplified retarget of the bot kit's ec-maker: rests two-sided liquidity around
@@ -60,7 +63,11 @@ export async function runEcMakerTick(exchange: SomniaMarkets, marketSymbols: str
         }
       }
     } catch (err) {
-      console.error(`[ec-maker] cancel-refresh failed on ${symbol}`, err);
+      // Non-fatal: a failed cancel means we requote alongside our own resting order, which
+      // the pool may reject as a self-match. Recorded with a name so the frequency is
+      // countable — an unstructured stack dump per occurrence is how 314 identical reverts
+      // stayed invisible as a pattern. See FEEDBACK.md.
+      log.warn("cancel-refresh failed", { symbol, reason: reasonOf(err) });
     }
 
     const book = await exchange.fetchOrderBook(symbol);
@@ -87,9 +94,26 @@ export async function runEcMakerTick(exchange: SomniaMarkets, marketSymbols: str
         quantity: BigInt(QUOTE_SIZE * 1e6),
         orderType: 0,
       });
-      console.log(`[ec-maker] ${symbol}: quoting YES@${yesBidPrice.toFixed(3)} / NO@${noBidPrice.toFixed(3)}`);
+      log.info("quoted", {
+        symbol,
+        mid: Number(mid.toFixed(3)),
+        yesBid: Number(yesBidPrice.toFixed(3)),
+        noBid: Number(noBidPrice.toFixed(3)),
+        bookWasEmpty: book.bids.length === 0 && book.asks.length === 0,
+      });
     } catch (err) {
-      console.error(`[ec-maker] quote failed on ${symbol}`, err);
+      log.warn("quote failed", { symbol, reason: reasonOf(err) });
     }
   }
+}
+
+/**
+ * A revert's short name, or a truncated message. The point is that repeated failures
+ * aggregate: `jq -r 'select(.message=="quote failed") | .reason' | sort | uniq -c` turns two
+ * hours of noise into one line, which is exactly the read that would have surfaced
+ * `OrderAlreadyExpired` immediately instead of after 314 occurrences.
+ */
+function reasonOf(err: unknown): string {
+  const e = err as { errorName?: string; shortMessage?: string; message?: string };
+  return e?.errorName ?? e?.shortMessage ?? String(e?.message ?? err).slice(0, 160);
 }

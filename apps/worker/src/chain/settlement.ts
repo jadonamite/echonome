@@ -1,6 +1,10 @@
 import { createReadOnlyExchange, EC_VENUE_ID, EC_TARGET_CADENCE } from "./client.js";
 import { query, queryOne } from "../db/client.js";
 import { recomputeCalibration } from "../calibration/engine.js";
+import { createLogger } from "../logger.js";
+import { beat } from "../health/heartbeat.js";
+
+const log = createLogger("settlement");
 
 /**
  * Polls resolved (past) markets on the target venue/cadence, fills in Decision and
@@ -93,7 +97,12 @@ async function settleOnce() {
       );
     }
 
-    console.log(`[settlement] market ${info.marketId} resolved ${outcome} — ${pendingDecisions.length} decision(s) settled`);
+    log.info("market resolved", {
+      marketId: info.marketId,
+      outcome,
+      decisionsSettled: pendingDecisions.length,
+      tradersAffected: touchedTraders.size,
+    });
 
     for (const traderId of touchedTraders) {
       await recomputeCalibration(traderId);
@@ -102,8 +111,11 @@ async function settleOnce() {
 }
 
 export function watchSettlement() {
-  settleOnce().catch((err) => console.error("[settlement] initial pass failed", err));
-  setInterval(() => {
-    settleOnce().catch((err) => console.error("[settlement] tick failed", err));
-  }, POLL_INTERVAL_MS);
+  const tick = () =>
+    settleOnce()
+      .then(() => beat("settlement"))
+      .catch((err) => log.error("tick failed", { err: String(err) }));
+
+  tick();
+  setInterval(tick, POLL_INTERVAL_MS);
 }

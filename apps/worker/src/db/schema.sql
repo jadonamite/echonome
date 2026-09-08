@@ -106,3 +106,14 @@ UPDATE decision SET implied_probability = implied_probability / 1000000 WHERE im
 ALTER TABLE decision DROP CONSTRAINT IF EXISTS decision_implied_probability_check;
 ALTER TABLE decision ADD CONSTRAINT decision_implied_probability_check
   CHECK (implied_probability >= 0 AND implied_probability <= 1);
+
+-- ── Liveness monitoring (2026-09-09) ───────────────────────────────────────────────
+-- Six defects in two days, every one of them a healthy process writing nothing. An
+-- uptime check would have passed through all of them. This table is how a loop proves
+-- it is actually looping, rather than merely resident: each component stamps its own
+-- row every tick, and a stale stamp is a wedged loop even when the process is alive.
+CREATE TABLE IF NOT EXISTS worker_heartbeat (
+  component     text PRIMARY KEY,
+  last_beat_at  timestamptz NOT NULL DEFAULT now(),
+  detail        jsonb NOT NULL DEFAULT '{}'
+);

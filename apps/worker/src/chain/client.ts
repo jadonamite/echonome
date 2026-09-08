@@ -46,12 +46,26 @@ export function createOperatorExchange() {
 }
 
 /**
+ * The fields of a market row these predicates read. One type for both, so a caller can pass
+ * the whole `market.info` to either without the narrower one rejecting the extra keys.
+ */
+export interface TargetMarketInfo {
+  venueId?: string;
+  interval?: string | null;
+  asset?: string | null;
+  /** Indexer lifecycle: "Trading" -> "Locked" -> "Finalized". Read only by the liveness check. */
+  status?: string | null;
+  /** Unix seconds at which the window closes. Read only by the liveness check. */
+  expiry?: string | number | null;
+}
+
+/**
  * True if a binary market is one we care about BY IDENTITY — right venue, right cadence,
  * right asset. Says nothing about whether it is still alive: an Event Contracts market that
  * expired an hour ago still matches this. Use it to recognise a market, never to decide
  * whether to trade on one.
  */
-export function isTargetMarket(info: { venueId?: string; interval?: string | null; asset?: string | null }) {
+export function isTargetMarket(info: TargetMarketInfo) {
   return (
     info.venueId === EC_VENUE_ID &&
     info.interval === EC_TARGET_CADENCE &&
@@ -75,7 +89,7 @@ export function isTargetMarket(info: { venueId?: string; interval?: string | nul
  * seconds around the boundary, and a bot should refuse on either signal rather than pick one.
  */
 export function isTradeableTargetMarket(
-  info: { venueId?: string; interval?: string | null; asset?: string | null; status?: string | null; expiry?: string | number | null },
+  info: TargetMarketInfo,
   nowSec: number = Math.floor(Date.now() / 1000)
 ) {
   if (!isTargetMarket(info)) return false;

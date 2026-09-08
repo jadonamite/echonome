@@ -1,4 +1,7 @@
 import type { SomniaMarkets } from "@somnia-chain/markets-sdk";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("ec-oracle-follow");
 
 /**
  * A simplified retarget of the bot kit's documented ec-oracle-follow strategy:
@@ -68,9 +71,13 @@ export async function runEcOracleFollowTick(exchange: SomniaMarkets, marketSymbo
         quantity: BigInt(ORDER_SIZE * 1e6),
         orderType: 2, // IOC — cross now or cancel
       });
-      console.log(`[ec-oracle-follow] ${symbol}: edge=${edge.toFixed(3)} → ${side} @ ${crossPrice.toFixed(3)}`);
+      log.info("crossed", { symbol, edge: Number(edge.toFixed(3)), side, price: Number(crossPrice.toFixed(3)) });
     } catch (err) {
-      console.error(`[ec-oracle-follow] order failed on ${symbol}`, err);
+      const e = err as { errorName?: string; shortMessage?: string; message?: string };
+      log.warn("order failed", {
+        symbol,
+        reason: e?.errorName ?? e?.shortMessage ?? String(e?.message ?? err).slice(0, 160),
+      });
     }
   }
 }

@@ -1,4 +1,7 @@
 import { query, queryOne } from "../db/client.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("calibration");
 
 /**
  * Calibration engine — retargeted from ~/Projects/jadonamite/delta-agent, which runs
@@ -62,6 +65,10 @@ export async function recomputeCalibration(traderId: string): Promise<void> {
     [traderId, Number.isNaN(score) ? null : score, sampleCount]
   );
 
-  const status = sampleCount >= MIN_CALIBRATION_SAMPLE ? "ranked" : "warming up";
-  console.log(`[calibration] trader ${traderId}: brier=${score.toFixed(4)} n=${sampleCount} (${status})`);
+  log.info("recomputed", {
+    traderId,
+    brier: Number.isNaN(score) ? null : Number(score.toFixed(4)),
+    sampleCount,
+    ranked: sampleCount >= MIN_CALIBRATION_SAMPLE,
+  });
 }

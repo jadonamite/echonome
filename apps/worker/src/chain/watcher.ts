@@ -1,6 +1,7 @@
 import { createReadOnlyExchange, isTargetMarket, isTradeableTargetMarket } from "./client.js";
 import { query, queryOne } from "../db/client.js";
 import { createLogger } from "../logger.js";
+import { beat } from "../health/heartbeat.js";
 
 const log = createLogger("watcher");
 
@@ -98,13 +99,46 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
   // already reloads markets every tick (`runSeedTraders.ts`); the watcher didn't.
   const watched = new Map<string, WatchedMarket>();
 
-  const refreshTargets = async () => {
-    // `reload: true` is load-bearing, not defensive. A bare `loadMarkets()` early-returns
-    // the SDK's CACHED registry — it is documented as a no-op after the first call — so the
-    // first version of this function re-read the same frozen market list every 10 seconds
-    // and believed it was refreshing. It fixed the rollover bug only in the sense that
-    // restarting the worker warmed a fresh cache for one window. See FEEDBACK.md.
-    await exchange.loadMarkets(true);
+  /**
+   * Refreshes the watched market set. Returns false when it could not reach the venue, in
+   * which case the caller carries on with whatever set it already had.
+   *
+   * REGRESSION I CAUSED AND THEN CAUGHT (2026-09-09): switching to `loadMarkets(true)` fixed
+   * the rollover bug and introduced a worse one. A bare `loadMarkets()` served a cache and so
+   * could never fail; `reload: true` performs a real indexer query, and this call sat at the
+   * top of the tick with nothing catching it. One transient
+   * `IndexerError: RegistryMarkets failed: fetch failed` therefore aborted the ENTIRE tick —
+   * including reading fills from markets we already knew about and did not need the indexer to
+   * tell us about. 68 consecutive failed ticks, twenty minutes of lost decisions, from a
+   * network blip that lasted seconds. The new liveness monitor caught it within minutes of
+   * being written, which is the only reason this is a paragraph and not another entry in
+   * FEEDBACK.md's list of things that ran broken for hours.
+   *
+   * The asymmetry that matters, and it is deliberate: **the watcher may act on a stale market
+   * set, the seed traders may not.** Reading fills from a market that has just expired is
+   * harmless — it either returns rows we want or none. PLACING an order against a stale set is
+   * how the maker spent two hours quoting into a dead market. So this degrades to stale, and
+   * `runSeedTraders` skips its tick instead.
+   */
+  const refreshTargets = async (): Promise<boolean> => {
+    try {
+      // `reload: true` is load-bearing. A bare `loadMarkets()` early-returns the SDK's CACHED
+      // registry — documented as a no-op after the first call — so the first version of this
+      // function re-read the same frozen market list every 10 seconds and believed it was
+      // refreshing. It fixed the rollover bug only in the sense that restarting the worker
+      // warmed a fresh cache for one window. See FEEDBACK.md.
+      await exchange.loadMarkets(true);
+    } catch (err) {
+      // Not an error: an expected, recoverable condition with a defined fallback. Logged at
+      // warn so a burst is visible without paging anyone, and counted so a SUSTAINED outage
+      // is distinguishable from a blip.
+      log.warn("could not refresh market set, continuing with the last known one", {
+        knownMarkets: watched.size,
+        err: String(err).slice(0, 200),
+      });
+      return false;
+    }
+
     const now = Date.now();
     const nowSec = Math.floor(now / 1000);
 
@@ -125,15 +159,19 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
       });
     }
 
+    // Aging runs only on a SUCCESSFUL refresh (this is past the early return). Otherwise a
+    // multi-minute indexer outage would quietly evict every market and leave the watcher
+    // permanently blind to fills it could still have read — an outage turning into data loss.
     for (const [marketId, entry] of watched) {
       if (now - entry.lastSeenLiveAt > EXPIRED_MARKET_RETENTION_MS) watched.delete(marketId);
     }
+    return true;
   };
 
   const tick = async () => {
-    await refreshTargets();
+    const refreshed = await refreshTargets();
     if (watched.size === 0) {
-      log.warn("no target markets in the live set this tick", {});
+      log.warn("no markets to poll this tick", { refreshed });
       return;
     }
 
@@ -208,6 +246,10 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
         lastSeen.set(trader.address, latest + 1);
       }
     }
+
+    // Stamped after the work, never before: a tick that hangs mid-poll must read as stale,
+    // and stamping on entry would report a wedged loop as healthy forever.
+    await beat("watcher", { watchedMarkets: watched.size, traders: traders.length });
   };
 
   await tick();

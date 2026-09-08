@@ -4,6 +4,10 @@ import { privateKeyToAccount } from "viem/accounts";
 import { EC_VENUE_ID, isTradeableTargetMarket } from "../chain/client.js";
 import { runEcMakerTick } from "./ecMaker.js";
 import { runEcOracleFollowTick } from "./ecOracleFollow.js";
+import { createLogger } from "../logger.js";
+import { beat } from "../health/heartbeat.js";
+
+const log = createLogger("seeds");
 
 const indexerUrl = process.env.SHANNON_INDEXER_URL ?? "https://dev.smk.somnia.host/v1/graphql";
 const wsRpcUrl = process.env.SHANNON_WS_URL ?? "wss://api.infra.testnet.somnia.network/ws";
@@ -45,6 +49,11 @@ function buildExchange(privateKey: `0x${string}`) {
  * quoting into a two-hour-dead market and never once seeing the live one.
  */
 async function targetMarketSymbols(exchange: SomniaMarkets): Promise<string[]> {
+  // No try/catch here on purpose. If the venue can't be reached, the caller must NOT trade:
+  // placing orders against an unconfirmed market set is exactly how the maker spent two hours
+  // quoting into an expired window. Letting this throw makes the tick skip, which is the safe
+  // failure direction for anything that writes. The watcher takes the opposite choice for
+  // reads, and says why in its own comment.
   await exchange.loadMarkets(true);
   const nowSec = Math.floor(Date.now() / 1000);
   return Object.values(exchange.markets)
@@ -58,35 +67,51 @@ async function main() {
   const makerExchange = buildExchange(makerKey);
   const oracleFollowExchange = buildExchange(oracleFollowKey);
 
-  console.log(`[seeds] ec-maker wallet: ${privateKeyToAccount(makerKey).address}`);
-  console.log(`[seeds] ec-oracle-follow wallet: ${privateKeyToAccount(oracleFollowKey).address}`);
-  console.log(`[seeds] target venue: ${EC_VENUE_ID}`);
+  log.info("starting", {
+    maker: privateKeyToAccount(makerKey).address,
+    oracleFollow: privateKeyToAccount(oracleFollowKey).address,
+    venue: EC_VENUE_ID,
+  });
 
   const makerAddress = privateKeyToAccount(makerKey).address;
 
   const tick = async () => {
+    let symbols: string[] = [];
+
     try {
-      const makerSymbols = await targetMarketSymbols(makerExchange);
-      await runEcMakerTick(makerExchange, makerSymbols, makerAddress);
+      symbols = await targetMarketSymbols(makerExchange);
+      // The market set is logged every tick, by name. Had this line existed, the two hours
+      // spent quoting into `ETH-0-08SEP26-2200` after it expired would have been obvious at
+      // a glance instead of requiring a database query to notice. A bot's target set is the
+      // single most useful thing it can tell you about itself.
+      log.info("tick", { targets: symbols });
+      if (symbols.length === 0) {
+        log.warn("no tradeable target market this tick — between cadence windows, or the venue moved", {});
+      }
+      await runEcMakerTick(makerExchange, symbols, makerAddress);
     } catch (err) {
-      console.error("[seeds] ec-maker tick failed", err);
+      // An indexer blip lands here and the tick is skipped — deliberately. Not trading for
+      // 15 seconds costs nothing; trading against a stale market set has already cost hours.
+      log.warn("ec-maker tick skipped", { reason: String(err).slice(0, 200) });
     }
 
     try {
       const oracleFollowSymbols = await targetMarketSymbols(oracleFollowExchange);
       await runEcOracleFollowTick(oracleFollowExchange, oracleFollowSymbols);
     } catch (err) {
-      console.error("[seeds] ec-oracle-follow tick failed", err);
+      log.warn("ec-oracle-follow tick skipped", { reason: String(err).slice(0, 200) });
     }
+
+    await beat("seeds", { targets: symbols });
   };
 
   await tick();
   setInterval(() => {
-    tick().catch((err) => console.error("[seeds] tick failed", err));
+    tick().catch((err) => log.error("tick failed", { err: String(err).slice(0, 300) }));
   }, TICK_MS);
 }
 
 main().catch((err) => {
-  console.error("[seeds] fatal", err);
+  log.error("fatal", { err: String(err) });
   process.exit(1);
 });
