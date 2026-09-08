@@ -1,0 +1,20 @@
+{
+  "name": "@echonome/contracts",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/compile.ts",
+    "deploy": "tsx --env-file=../../apps/worker/.env scripts/deploy.ts",
+    "verify:custody": "tsx --env-file=../../apps/worker/.env scripts/verifyCustody.ts"
+  },
+  "dependencies": {
+    "solc": "0.8.28",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
