@@ -295,6 +295,51 @@ a process that is up, logging nothing, and writing no rows. Uptime is not livene
 monitoring in Phase 8 should alert on *absence* (no new decisions in N minutes, no
 settlements in N hours), not only on thrown errors.
 
+## 2026-09-09 — `loadMarkets()` silently early-returns a cache, which turned yesterday's rollover fix into a placebo
+
+Yesterday's entry above records fixing the fill watcher's frozen market set by refreshing it
+every tick. **That fix did nothing.** `SomniaMarkets.loadMarkets()` early-returns the cached
+registry unless you pass `reload: true` — stated plainly in its own doc comment
+(*"Early-returns the cached registry unless `reload` is true"*), which I had not read because
+the method looked like it had no interesting parameters. So calling it every 10 seconds
+re-read the same frozen list every 10 seconds.
+
+The reason it *looked* fixed is the trap worth recording: applying the fix meant restarting
+the worker, and a restart warms a fresh cache. Decisions duly appeared on the current
+market, I verified them, and I wrote "verified live". That verification was real and its
+conclusion was wrong — it proved the process had been restarted, not that the refresh
+worked. **A fix that requires a restart to deploy cannot be validated by observing behaviour
+right after the restart.** The next cadence boundary is the earliest honest test.
+
+The seed runner had the identical bug, in code written the same way, for the same reason.
+
+### And a second bug it was hiding
+
+With the market list pinned, the strategies' filter never mattered — but it was also wrong on
+its own. `isTargetMarket()` checks venue, cadence and asset. It does **not** check whether the
+market is still alive, and the SDK's registry accumulates windows (each cadence window mints
+its own symbol, so `ETH-0-08SEP26-2200` and `ETH-0-09SEP26-772B` are separate entries that
+both persist). So `ec-maker` spent two hours quoting into a market that had expired at 23:00 —
+**314 consecutive `OrderAlreadyExpired` reverts** — while the live windows sat at zero trades.
+
+Every log line said the maker was quoting. It was, into a corpse.
+
+Split into `isTargetMarket` (identity — recognises a market, including a dead one) and
+`isTradeableTargetMarket` (identity AND `status === "Trading"` AND expiry in the future).
+Both signals are checked because they disagree for a few seconds either side of the boundary
+and a bot should refuse on either rather than pick one.
+
+### The pattern, again
+
+This is the third time in two days that a defect on this venue presented as *quiet* rather
+than as an error: a stale market list, an unmatched string comparison, and now a cached read
+that looks like a live one. The venue's cadence boundaries mean anything pinned to a moment
+keeps working for up to an hour before going silent, so the failure always shows up later than
+the change that caused it, and never at the same time as the deploy that fixed it. The
+Phase 8 monitoring must alert on **absence** — no new decisions in N minutes, no fills on a
+market that is live and has volume — because "up, no errors, writing nothing" is what all
+three of these looked like from outside.
+
 ---
 
 _Add to this file as things come up — don't wait until submission to remember what was hard._

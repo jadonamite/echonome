@@ -1,4 +1,4 @@
-import { createReadOnlyExchange, isTargetMarket } from "./client.js";
+import { createReadOnlyExchange, isTargetMarket, isTradeableTargetMarket } from "./client.js";
 import { query, queryOne } from "../db/client.js";
 import { createLogger } from "../logger.js";
 
@@ -99,14 +99,29 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
   const watched = new Map<string, WatchedMarket>();
 
   const refreshTargets = async () => {
-    await exchange.loadMarkets();
+    // `reload: true` is load-bearing, not defensive. A bare `loadMarkets()` early-returns
+    // the SDK's CACHED registry — it is documented as a no-op after the first call — so the
+    // first version of this function re-read the same frozen market list every 10 seconds
+    // and believed it was refreshing. It fixed the rollover bug only in the sense that
+    // restarting the worker warmed a fresh cache for one window. See FEEDBACK.md.
+    await exchange.loadMarkets(true);
     const now = Date.now();
+    const nowSec = Math.floor(now / 1000);
 
     for (const market of Object.values(exchange.markets) as any[]) {
       if (market.type !== "binary" || !isTargetMarket(market.info)) continue;
-      watched.set(market.info.marketId as string, {
+
+      const marketId = market.info.marketId as string;
+      const existing = watched.get(marketId);
+      // Only a market that is genuinely still trading refreshes its liveness stamp.
+      // Stamping every market the registry remembers — and it remembers expired ones, keyed
+      // by their own per-window symbol — would hold every dead market in the watched set
+      // forever, which is the retention window failing open instead of expiring.
+      const live = isTradeableTargetMarket(market.info, nowSec);
+
+      watched.set(marketId, {
         quoteDecimals: Number(market.info.quoteDecimals ?? 6),
-        lastSeenLiveAt: now,
+        lastSeenLiveAt: live ? now : (existing?.lastSeenLiveAt ?? now),
       });
     }
 

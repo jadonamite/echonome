@@ -45,7 +45,12 @@ export function createOperatorExchange() {
   });
 }
 
-/** True if a binary market is on the confirmed Event Contracts venue, at our target cadence and asset list. */
+/**
+ * True if a binary market is one we care about BY IDENTITY — right venue, right cadence,
+ * right asset. Says nothing about whether it is still alive: an Event Contracts market that
+ * expired an hour ago still matches this. Use it to recognise a market, never to decide
+ * whether to trade on one.
+ */
 export function isTargetMarket(info: { venueId?: string; interval?: string | null; asset?: string | null }) {
   return (
     info.venueId === EC_VENUE_ID &&
@@ -53,4 +58,28 @@ export function isTargetMarket(info: { venueId?: string; interval?: string | nul
     !!info.asset &&
     (EC_TARGET_ASSETS as readonly string[]).includes(info.asset)
   );
+}
+
+/**
+ * True if a target market is actually accepting orders right now.
+ *
+ * BUG FOUND LIVE 2026-09-09: `isTargetMarket` alone was the filter both seed strategies used
+ * to choose what to quote on, and it has no liveness test at all. Markets accumulate in the
+ * SDK's registry (they are keyed by symbol, and each cadence window mints a new symbol), so
+ * once the 22:00 window died the maker kept happily quoting into it — 314 consecutive
+ * `OrderAlreadyExpired` reverts across two hours, while the live windows sat untouched at
+ * zero trades. The seed fleet looked busy in the logs and was accomplishing nothing.
+ *
+ * `status` comes off the indexer row and goes `Trading` -> `Locked` -> `Finalized`; expiry is
+ * the wall-clock end of the window. Both are checked because they can disagree by a few
+ * seconds around the boundary, and a bot should refuse on either signal rather than pick one.
+ */
+export function isTradeableTargetMarket(
+  info: { venueId?: string; interval?: string | null; asset?: string | null; status?: string | null; expiry?: string | number | null },
+  nowSec: number = Math.floor(Date.now() / 1000)
+) {
+  if (!isTargetMarket(info)) return false;
+  if (info.status !== "Trading") return false;
+  const expiry = Number(info.expiry);
+  return Number.isFinite(expiry) && expiry > nowSec;
 }

@@ -88,11 +88,19 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
   );
   if (!decision) return;
 
+  // A fresh exchange per call, so this first `loadMarkets` is a real read either way —
+  // `reload: true` is explicit so that stays true if this is ever hoisted to a shared
+  // instance, which is exactly the change that silently broke the watcher and the seed
+  // runner (a bare loadMarkets() early-returns a cache). See FEEDBACK.md.
   const exchange = createReadOnlyExchange();
-  await exchange.loadMarkets();
+  await exchange.loadMarkets(true);
   const market = Object.values(exchange.markets).find((m: any) => m.info?.marketId === decision.market_id) as any;
   if (!market) {
-    log.warn("market not found in live set, skipping", { marketId: decision.market_id });
+    // Expected, not alarming: the watcher deliberately keeps reading fills from a window
+    // for a few minutes after it expires, so a late fill can arrive naming a market that
+    // has already left the tradeable set. There is nothing to echo into — the expiry cutoff
+    // below would refuse it anyway — so this is an info, not a warning about missing data.
+    log.info("source market no longer trading, nothing to echo into", { marketId: decision.market_id });
     return;
   }
 

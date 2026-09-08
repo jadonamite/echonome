@@ -1,7 +1,7 @@
 import { SomniaMarkets, SOMNIA_TESTNET_ADDRESSES } from "@somnia-chain/markets-sdk";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { EC_VENUE_ID, isTargetMarket } from "../chain/client.js";
+import { EC_VENUE_ID, isTradeableTargetMarket } from "../chain/client.js";
 import { runEcMakerTick } from "./ecMaker.js";
 import { runEcOracleFollowTick } from "./ecOracleFollow.js";
 
@@ -29,10 +29,26 @@ function buildExchange(privateKey: `0x${string}`) {
   });
 }
 
+/**
+ * The markets these strategies should be quoting on THIS tick.
+ *
+ * Two bugs lived in the three lines this replaces, and they compounded:
+ *
+ *  1. `loadMarkets()` without `reload` early-returns the SDK's cached registry — it is a
+ *     no-op after the first call, documented as such on the method. So this function looked
+ *     like a per-tick refresh and was actually pinned to whatever was live when the process
+ *     booted. Restarting the worker "fixed" the rollover for exactly one window, which is
+ *     what made it look fixed.
+ *  2. It filtered on identity only, so expired windows stayed in the list forever.
+ *
+ * Either one alone loses data at the cadence boundary; together they had the seed fleet
+ * quoting into a two-hour-dead market and never once seeing the live one.
+ */
 async function targetMarketSymbols(exchange: SomniaMarkets): Promise<string[]> {
-  await exchange.loadMarkets();
+  await exchange.loadMarkets(true);
+  const nowSec = Math.floor(Date.now() / 1000);
   return Object.values(exchange.markets)
-    .filter((m: any) => m.type === "binary" && isTargetMarket(m.info))
+    .filter((m: any) => m.type === "binary" && isTradeableTargetMarket(m.info, nowSec))
     .map((m: any) => m.symbol);
 }
 
