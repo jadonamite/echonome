@@ -10,8 +10,8 @@ See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how. Deadline: **Fri 
 - [x] `[P]` `[FE]` Init Next.js app (TS, Tailwind, App Router) — `apps/web/` *(scaffold only — builds clean, no product UI yet, that's Sam's build)*
 - [x] `[P]` `[BE]` Init worker TS project — `apps/worker/` *(typechecks clean)*
 - [x] `[P]` `[BE]` Shared domain types — `packages/shared/src/types.ts`
-- [ ] `[BE]` Provision Postgres, set `DATABASE_URL` — **blocked on a real connection string, see note below**
-- [ ] `[BE]` Fund seed-trader wallets from the event testnet faucet — **blocked on wallet keys**
+- [x] `[BE]` Provision Postgres, set `DATABASE_URL` — local Postgres 16 via Homebrew, migrated, all 6 tables live
+- [x] `[BE]` Fund seed-trader wallets from the event testnet faucet — operator + 2 seed wallets generated and funded (50 STT each, verified on-chain)
 
 ## Phase 2 — Foundational (blocks everything below)
 
@@ -22,7 +22,7 @@ See `PRD.md` for what/why, `TECHNICAL_ARCHITECTURE.md` for how. Deadline: **Fri 
 - [x] `[P]` `[FE]` wagmi/viem config — `apps/web/lib/wagmi.ts`
 - [x] `[P]` `[FE]` Base layout + Tailwind theme scaffold — `apps/web/app/layout.tsx` *(structure only — the real design pass is Sam's, per the design mandate)*
 
-**Blocked on Jadon:** T005 (`DATABASE_URL`) and T006 (funded seed-trader private keys) need real credentials before the worker can run end-to-end. Everything else in Phase 1/2 is code-complete and typechecked.
+Both T005 and T006 are now unblocked — DB is live, wallets are funded. Phase 1/2 fully code-complete and typechecked; the worker can be started for real.
 
 **Checkpoint:** DB live, watcher sees real fills, wallet connects. Nothing product-shaped yet.
 

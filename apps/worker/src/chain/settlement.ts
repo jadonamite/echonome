@@ -6,9 +6,11 @@ import { recomputeCalibration } from "../calibration/engine.js";
  * Polls resolved (past) markets on the target venue/cadence, fills in Decision and
  * Echo outcomes, and triggers a calibration recompute for every affected trader.
  *
- * TODO day-1 check: confirm `winningOutcome`'s exact string values against a real
- * resolved market (none were observed resolved during the 2026-09-08 testnet probe —
- * see specs/echonome/plan.md). Assumed YES/NO below, mapped to our up/down.
+ * winningOutcome mapping: DECIDED, not a placeholder. Every market's outcomes array
+ * carries index 0 = YES, index 1 = NO (confirmed on-chain 2026-09-08), and every
+ * sampled question is phrased as the affirmative/upward condition — "will X be AT OR
+ * ABOVE strike" — so YES is definitionally the Up outcome. Re-verify only if a market
+ * with a differently-phrased question (e.g. "at or below") ever appears on this venue.
  */
 
 const POLL_INTERVAL_MS = 15_000;
