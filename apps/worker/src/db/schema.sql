@@ -117,3 +117,18 @@ CREATE TABLE IF NOT EXISTS worker_heartbeat (
   last_beat_at  timestamptz NOT NULL DEFAULT now(),
   detail        jsonb NOT NULL DEFAULT '{}'
 );
+
+-- ── EchoAccount migration (2026-09-09) ─────────────────────────────────────────────
+-- The follower's own trading account, which replaces the operator-grant path that Event
+-- Contract pools turned out not to support. proxy_grant keeps its name — it still means
+-- "this follower authorised our executor, here is where that authority lives" — but the
+-- authority now lives in a contract they own rather than in a DreamDEX registry.
+ALTER TABLE proxy_grant ADD COLUMN IF NOT EXISTS account_address text;
+CREATE INDEX IF NOT EXISTS proxy_grant_account_idx ON proxy_grant (account_address);
+
+-- The leader's fill size, in raw base units. Its absence is why the mirror engine carried
+-- a hardcoded `followerStake = 1` placeholder: "copy at 25% of their size" is unanswerable
+-- without knowing their size, so every echo would have been sized arbitrarily no matter
+-- what a follower chose. Nullable because rows written before this column existed genuinely
+-- don't have it, and inventing a value for them would be worse than skipping them.
+ALTER TABLE decision ADD COLUMN IF NOT EXISTS quantity numeric;

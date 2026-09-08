@@ -218,11 +218,22 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
           // hitting the same fill twice is a no-op at the DB level, not application logic
           // that could lose a race between two ticks.
           const inserted = await queryOne<{ id: string }>(
-            `INSERT INTO decision (trader_id, market_id, side, implied_probability, fill_id, created_at)
-             VALUES ($1, $2, $3, $4, $5, to_timestamp($6))
+            `INSERT INTO decision (trader_id, market_id, side, implied_probability, quantity, fill_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7))
              ON CONFLICT (trader_id, fill_id) WHERE fill_id IS NOT NULL DO NOTHING
              RETURNING id`,
-            [trader.id, fill.market, outcome, impliedProbability, fill.id, Number(fill.timestamp)]
+            [
+              trader.id,
+              fill.market,
+              outcome,
+              impliedProbability,
+              // Raw base units, stored as-is. The mirror engine needs the leader's SIZE to
+              // honour "copy at 25% of their size" — without it the placeholder it carried
+              // sized every echo identically regardless of what the follower chose.
+              fill.quantity ?? null,
+              fill.id,
+              Number(fill.timestamp),
+            ]
           );
 
           if (inserted) {
