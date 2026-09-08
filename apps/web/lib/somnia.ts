@@ -5,20 +5,37 @@ import type { Address } from "viem";
 export const OPERATOR_ADDRESS = process.env.NEXT_PUBLIC_OPERATOR_ADDRESS as Address | undefined;
 
 /**
- * The OperatorPermissionsRegistry address.
+ * DreamDEX's OperatorPermissionsRegistry on Shannon testnet.
  *
- * 🚧 OPEN BLOCKER: this is NOT in the SDK's baked-in `SOMNIA_TESTNET_ADDRESSES` — every key
- * was printed and it genuinely isn't there — and `setOperatorApprovalGlobal` requires it
- * (`config.addresses.operatorPermissionsRegistry`, or a per-call `operatorRegistry`
- * override). Until it's known, the grant step cannot be executed against the real contract.
+ * Absent from the SDK's `SOMNIA_TESTNET_ADDRESSES` — found by asking a live SPOT pool
+ * (`getOperatorPermissionsRegistry()`, which binary pools don't implement), then confirmed
+ * against DreamDEX's published Operators page. Mainnet is
+ * `0xE7a190736B6024a4DbafadC04E283075877005ce`.
  *
- * It is read from the environment rather than hardcoded so that the moment the address is
- * found, the grant flow works with a config change and no code change. The connect page
- * renders an explicit blocked state when it's absent — it never simulates a grant that
- * didn't happen. See FEEDBACK.md.
+ * Knowing it does NOT unblock copy-trading here — see OPERATOR_GRANT_APPLIES_TO_BINARY.
  */
-export const OPERATOR_REGISTRY_ADDRESS = process.env
-  .NEXT_PUBLIC_OPERATOR_REGISTRY_ADDRESS as Address | undefined;
+export const OPERATOR_PERMISSIONS_REGISTRY: Address =
+  (process.env.NEXT_PUBLIC_OPERATOR_REGISTRY_ADDRESS as Address | undefined) ??
+  "0x15C7e8CE38F021c5b45d098AaD788f63090bF20A";
+
+/**
+ * Whether an operator grant actually authorises anything on an Event Contract pool.
+ *
+ * It does not, and this is proven on chain rather than assumed — run
+ * `npm run verify:operator-gate` in `apps/worker`, or see FEEDBACK.md. With BOTH a global
+ * and a per-pool grant recorded on the registry above, for the real operator, on the real
+ * live pool, for the correct `placeBinaryOrderFor` selector (`0x5d97c566`),
+ * `placeBinaryOrderFor` still reverts `OnlyApprovedContracts` — and it reverts identically
+ * when the OWNER calls it for themselves, so it is not a per-user permission check at all.
+ * Binary pools do not consult this registry; the SDK says so in a source comment
+ * ("a BinaryPool ... has no operator gate") that appears in none of its type definitions.
+ *
+ * This constant exists so the flip is a one-line change on the day DreamDEX admits a
+ * third-party operator on Event Contracts. Until then the grant step stays disabled, because
+ * recording a ProxyGrant that authorises nothing would be a lie told to a follower about
+ * their own funds.
+ */
+export const OPERATOR_GRANT_APPLIES_TO_BINARY = false;
 
 const indexerUrl =
   process.env.NEXT_PUBLIC_SHANNON_INDEXER_URL ?? "https://dev.smk.somnia.host/v1/graphql";
@@ -37,9 +54,7 @@ export function createBrowserExchange(walletClient: unknown): SomniaMarkets {
     wsRpcUrl,
     addresses: {
       ...SOMNIA_TESTNET_ADDRESSES,
-      ...(OPERATOR_REGISTRY_ADDRESS
-        ? { operatorPermissionsRegistry: OPERATOR_REGISTRY_ADDRESS }
-        : {}),
+      operatorPermissionsRegistry: OPERATOR_PERMISSIONS_REGISTRY,
     },
   });
   exchange.setSigner({ walletClient: walletClient as never });

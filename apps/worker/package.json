@@ -8,7 +8,8 @@
     "seed": "tsx --env-file=.env src/seeds/runSeedTraders.ts",
     "migrate": "tsx --env-file=.env src/db/migrate.ts",
     "test": "vitest run",
-    "verify:custody": "tsx --env-file=.env src/testnetVerifyCustody.ts"
+    "verify:custody": "tsx --env-file=.env src/testnetVerifyCustody.ts",
+    "verify:operator-gate": "tsx --env-file=.env src/testnetVerifyOperatorGate.ts"
   },
   "dependencies": {
     "@echonome/shared": "*",

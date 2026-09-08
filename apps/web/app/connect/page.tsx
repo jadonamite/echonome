@@ -11,7 +11,8 @@ import {
 import {
   createBrowserExchange,
   OPERATOR_ADDRESS,
-  OPERATOR_REGISTRY_ADDRESS,
+  OPERATOR_GRANT_APPLIES_TO_BINARY,
+  OPERATOR_PERMISSIONS_REGISTRY,
 } from "@/lib/somnia";
 import { shortAddress } from "@/lib/format";
 
@@ -70,7 +71,7 @@ export default function ConnectPage() {
         operator: OPERATOR_ADDRESS,
         selectors: [PLACE_ORDER_FOR_SELECTOR, CANCEL_ORDER_FOR_SELECTOR],
         approved: true,
-        ...(OPERATOR_REGISTRY_ADDRESS ? { operatorRegistry: OPERATOR_REGISTRY_ADDRESS } : {}),
+        operatorRegistry: OPERATOR_PERMISSIONS_REGISTRY,
       });
 
       // Only after the chain confirms it do we record the local mirror of it.
@@ -185,21 +186,31 @@ export default function ConnectPage() {
               </Blocked>
             )}
 
-            {OPERATOR_ADDRESS && !OPERATOR_REGISTRY_ADDRESS && (
-              <Blocked title="Blocked: the OperatorPermissionsRegistry address is unknown">
+            {OPERATOR_ADDRESS && !OPERATOR_GRANT_APPLIES_TO_BINARY && (
+              <Blocked title="Event Contracts don't accept this grant yet">
                 <p>
-                  <code className="font-mono text-xs">setOperatorApprovalGlobal</code> writes
-                  to DreamDEX&apos;s OperatorPermissionsRegistry, and that contract&apos;s
-                  address is not in the SDK&apos;s built-in Shannon address book. Without it
-                  the call cannot be sent.
+                  The registry is real and this call would land — the contract is{" "}
+                  <code className="font-mono text-xs">
+                    {OPERATOR_PERMISSIONS_REGISTRY}
+                  </code>
+                  . But it governs DreamDEX&apos;s spot pools, not Event Contract pools, and
+                  granting here would authorise nothing.
                 </p>
                 <p className="mt-2">
-                  This step is deliberately disabled rather than faked — a grant that
-                  didn&apos;t happen on chain must never be recorded as if it did. Set{" "}
-                  <code className="font-mono text-xs">
-                    NEXT_PUBLIC_OPERATOR_REGISTRY_ADDRESS
-                  </code>{" "}
-                  and this button works unchanged.
+                  That isn&apos;t a guess. With both a global and a per-pool grant recorded on
+                  chain for exactly this operator and selector, the order call still comes back{" "}
+                  <code className="font-mono text-xs">OnlyApprovedContracts</code> — and it
+                  comes back the same way when the owner places the order for themselves, so
+                  it isn&apos;t a per-user permission at all. Run{" "}
+                  <code className="font-mono text-xs">npm run verify:operator-gate</code> to
+                  watch it happen.
+                </p>
+                <p className="mt-2">
+                  So this step stays switched off. Recording an authorisation that grants
+                  nothing would be a lie told to you about your own money, and the entire
+                  point of Echonome is that it cannot touch your funds. Placing orders for
+                  someone else on Event Contracts currently needs DreamDEX to allowlist the
+                  caller at the protocol level.
                 </p>
               </Blocked>
             )}
@@ -207,7 +218,7 @@ export default function ConnectPage() {
             <button
               type="button"
               onClick={grant}
-              disabled={!canAct || granting || !OPERATOR_ADDRESS || !OPERATOR_REGISTRY_ADDRESS}
+              disabled={!canAct || granting || !OPERATOR_ADDRESS || !OPERATOR_GRANT_APPLIES_TO_BINARY}
               className="border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-40"
             >
               {granting ? "Waiting for your signature…" : "Grant permission"}

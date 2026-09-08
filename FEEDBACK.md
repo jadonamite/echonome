@@ -137,47 +137,101 @@ cancels the new (taker) order instead of letting it rest. Non-fatal — caught, 
 continues — but the cancel-refresh logic needs to be more reliably synchronous before this
 strategy is trusted beyond a demo. Tracked for Phase 6 hardening, not blocking the core loop.
 
-## 2026-09-08 — 🚧 OPEN: the operator-registry address for setOperatorApprovalGlobal/ForPool isn't in the SDK's baked-in address book
+## 2026-09-08 — RESOLVED: the registry address was findable, and finding it proved the whole approach was wrong
 
-Half-proven the full proxy-grant lifecycle live against testnet (`npm run verify:custody`,
-`apps/worker/src/testnetVerifyCustody.ts`) and hit a real wall on the grant step itself:
+This entry replaces an earlier one that recorded the missing
+`operatorPermissionsRegistry` address as an open blocker to be asked about in the event
+Telegram. Both halves turned out to be answerable without asking anyone.
 
-**What's proven, for real, on-chain:** an operator with NO grant calling
-`placeBinaryOrderFor(someOwner, ...)` reverts. Confirmed live. This is half of SC-001.
+### The address
 
-**What's blocked:** `Trader.setOperatorApprovalGlobal` / `setOperatorApprovalForPool` both
-require `config.addresses.operatorPermissionsRegistry`, which does **not** exist as a field
-in `SOMNIA_TESTNET_ADDRESSES` (confirmed — printed every key, it isn't there). Tried, in
-order:
-- `SOMNIA_TESTNET_ADDRESSES.marketsCore` as the registry address — the call now reaches the
-  contract (no more "not configured" error) but reverts with an **undecoded** reason (no
-  error name, `data: '0x'`) — meaning either `marketsCore` isn't actually the right contract
-  for this specific call, or a precondition we haven't identified is failing.
-- Checked the bot kit's own `scripts/operator-setup.ts` for a worked example — it uses a
-  higher-level wrapper (`grantOperator(fund, pool, operator)`) from their own
-  `@dreamdex-bot-kit/core` package, whose internals aren't visible in that script, so it
-  doesn't reveal the real registry address either.
-- Checked for an on-chain getter (`getOperatorPermissionsRegistry()`) on the pool contract
-  itself — exists in `spotPoolOperatorRegistryReadAbi` but reverts when called on our binary
-  pool (that ABI is spot-specific, doesn't apply to binary pools).
+**`0x15C7e8CE38F021c5b45d098AaD788f63090bF20A`** — OperatorPermissionsRegistry, Shannon
+testnet (mainnet is `0xE7a190736B6024a4DbafadC04E283075877005ce`).
 
-**Working theory, unconfirmed:** DreamDEX's `operatorId` concept (seen throughout market
-metadata, e.g. `market.info.operatorId: 4`) may be a *different* system — venue/market-creator
-registration (`OracleHubAdmin`'s sibling `OperatorAdmin` interface: `registerOperator`,
-`createVenue`, etc.) — from the lightweight "let this bot trade for me" session-key grant our
-product needs. If so, the grant call needs a precondition (operator registration) we haven't
-found documented anywhere.
+It is genuinely absent from `SOMNIA_TESTNET_ADDRESSES`, and the SDK says as much in a
+doc comment on `client.getOperatorPermissionsRegistry`: *"no deployment manifest carries
+the key yet."* But the same comment describes the way to get it — **ask a pool**. Spot
+pools expose `getOperatorPermissionsRegistry()`; binary pools do not, which is why the
+earlier attempt (asking our own binary pool) reverted and looked like a dead end.
+Loading the market list and calling that getter on any of the three live SPOT pools
+returns the address immediately, and all three name the same one. Later confirmed
+letter-for-letter against DreamDEX's published Operators page, which tabulates both
+networks — so it was documented all along, just not in the SDK and not anywhere the
+Event Contracts material points at.
 
-**Next step, not more guessing:** ask directly in the event's Telegram dev community
-(link in `Hackathons/event-contracts.md`) for the correct `operatorPermissionsRegistry`
-address on Shannon testnet, or the exact worked example DreamDEX uses internally. This is
-exactly the kind of gap the event's own optional "SDK/docs feedback report" deliverable
-exists for — worth including verbatim in the submission.
+**Method worth keeping:** when an address is missing from an SDK's address book, ask a
+deployed contract that must already know it rather than asking a human. The registry is
+shared infrastructure; any pool wired to it can name it.
 
-**Not blocking:** the mirror engine's actual echo-placement code (`mirror/engine.ts`) doesn't
-need this to be *resolved* to be correct — it already assumes a valid grant exists and acts
-accordingly. This only blocks *proving* the grant step live, and blocks T021 (the frontend's
-grant flow) from being wired to a real working call until it's found.
+### The part that actually mattered
+
+Having the address did not unblock the grant. It disproved it.
+
+**Proven live on Shannon, not inferred.** With BOTH grants recorded on the registry for
+our real operator, on the real live 1h BTC pool, for the exact
+`placeBinaryOrderFor` selector —
+
+```
+isGloballyApproved: true
+isApprovedForPool:  true
+placeBinaryOrderFor: reverts OnlyApprovedContracts
+```
+
+— the call is still refused. The grants land (`receipt: success`), read back true, and
+authorise nothing. Supporting evidence, all from the same session:
+
+- The binary pool does not implement `isOperatorAuthorized(owner,operator,selector)` at
+  all — it reverts. The spot pool answers it (`false`). That read is the exact check
+  DreamDEX's own docs tell you to use to verify a grant, and a binary pool cannot answer it.
+- `placeBinaryOrderFor` reverts `OnlyApprovedContracts` even when the OWNER calls it for
+  themselves — so it is not a per-user permission check at all.
+- The SDK says so outright, in a source comment in `dist/spot/operatorGrants.js` that
+  does not appear in any `.d.ts` and therefore never surfaced in a type-driven search:
+  *"SPOT-ONLY: the registry gates SpotPool's operator entry points (placeOrderFor and
+  friends). **A BinaryPool escrows through the module and has no operator gate.**"*
+- The official contract-function reference documents `SpotPool / OrderBook` only. The
+  string "binary" does not appear in it once.
+
+**Also settled: the selector we had was the wrong one anyway.** `PLACE_ORDER_FOR_SELECTOR`
+(`0x80054449`) is spot's `placeOrderFor`, and a binary pool rejects that function with
+`UseBinaryPlacement`. The binary equivalent is `placeBinaryOrderFor` = **`0x5d97c566`**,
+which the SDK exports nowhere and which has to be derived from its own ABI.
+
+### Has anyone else hit this
+
+Yes — every team that tried to build an agent on Event Contracts, and none of them got
+through it either:
+
+- **`karagozemin/Circuit`** (`docs/INTEGRATION_SPIKE.md`, 4 Sep) reaches our exact
+  conclusion, with the same two selectors and the same `OnlyApprovedContracts` selector
+  `0x3fb0ba2e`, and files it as *"Binary Event Contracts do not use the user-managed
+  SpotPool operator registry."* Their remaining-work list ends with "obtain dreamDEX
+  system-contract approval" — i.e. a human at DreamDEX must allowlist you.
+- **`FlemingJohn/dreamdex-desk`** reports the opposite conclusion — that per-pool grants
+  buy "one window of delegated trading" before the pool address rotates. **Our live test
+  says that is wrong**: we wrote exactly that grant, confirmed it on chain, and the call
+  was still refused. Their resolution rule
+  (`NOT denied AND (perPool OR (global AND registered))`) is correct and matches the
+  published docs; it just describes the SPOT gate, which a binary pool never consults.
+  Worth recording because it is the more attractive answer and it does not hold.
+- **`Prashant-thakur77/tapflow`** filed it as SDK feedback: *"nothing in the Event
+  Contracts section says whether the same OperatorPermissionsRegistry grants cover binary
+  pools. We had to grep the ABI to find out."*
+
+### What this means for Echonome
+
+The mirror engine's design — an operator EOA calling `placeBinaryOrderFor` on a follower's
+behalf — cannot work on Event Contracts today, for anyone, at any address. This is a real
+protocol gap, not a configuration mistake, and it is the single most valuable thing we can
+put in the event's SDK-feedback deliverable.
+
+The workaround the other teams converged on is the same one: invert the call. Instead of
+an operator placing *for* the user on the pool, the user gets a small account contract
+they own and fund, which calls the plain `placeBinaryOrder` *as itself*, and which admits
+our engine as a restricted executor (one pool, one selector, an expiry). Circuit calls
+theirs `CircuitSmartAccount`; DreamPulse ships a `DreamPulseSessionAccountV2`. Custody
+still never reaches us, which is the property the whole pitch rests on — it just costs a
+contract per follower instead of a signature.
 
 ## 2026-09-08 — `fill.fillPrice` is raw quote units AND always YES-terms — two bugs from one field
 
