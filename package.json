@@ -1,16 +1,16 @@
 {
   "name": "echonome",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Copy-trading for DreamDEX Event Contracts, ranked by calibration instead of raw P&L.",
   "type": "module",
-  "dependencies": {
-    "@somnia-chain/markets-sdk": "^0.29.0"
-  }
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "worker:dev": "npm run dev -w @echonome/worker",
+    "web:dev": "npm run dev -w @echonome/web"
+  },
+  "license": "UNLICENSED"
 }
