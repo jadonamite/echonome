@@ -51,7 +51,7 @@ date; it does not determine what's in this list or how it's ordered.*
 
 ## Phase 4 — Trust & Transparency
 
-- [ ] `[BE]` Reliability-bucket computation (confidence-vs-outcome breakdown, not just one Brier number) — `apps/worker/src/calibration/engine.ts`
+- [ ] `[BE]` Reliability-bucket computation (confidence-vs-outcome breakdown, not just one Brier number) — `apps/worker/src/calibration/engine.ts`. The `calibration_score.reliability` jsonb column exists and has been storing `'[]'` since day one. Both seed traders currently sit within a whisker of 0.25, which a single number renders as "coin flip" and tells a follower nothing — buckets are what distinguish "genuinely uninformative" from "confidently wrong at the extremes and fine in the middle" 
 - [ ] `[FE]` Reliability diagram + full decision log on trader profile — `apps/web/app/traders/[id]/page.tsx`
 - [ ] `[BE]` Per-follower exposure cap enforcement (across all of a follower's active copies) — `apps/worker/src/mirror/engine.ts`
 - [ ] `[FE]` Exposure cap setting in copy-follow flow — `apps/web/app/traders/[id]/copy-button.tsx`
@@ -61,7 +61,25 @@ date; it does not determine what's in this list or how it's ordered.*
 
 - [ ] `[BE]` Every cadence, not just 1h — 5m/15m/4h/24h, each with its own latency budget and sample-size threshold — `apps/worker/src/chain/client.ts`, `apps/worker/src/mirror/engine.ts`, `apps/worker/src/calibration/engine.ts`
 - [ ] `[FE]` `[BE]` Copying more than one trader at once — a real multi-`CopyLink` portfolio per follower with per-trader and total exposure caps
-- [ ] `[BE]` `[FE]` **Follower account contract** — the way copy-trading actually ships on Event Contracts, given that `placeBinaryOrderFor` is closed to third parties. A minimal contract the follower deploys, owns and funds, which calls the plain `placeBinaryOrder` as itself and admits Echonome's engine as a restricted executor scoped to one pool, one selector and an expiry. Custody still never reaches us — that property is the whole pitch and it survives intact; it costs a contract per follower instead of a signature. Two other teams on this venue converged on the same shape independently (Circuit's `CircuitSmartAccount`, DreamPulse's session account). The alternative is DreamDEX allowlisting our operator at the protocol level, which is a conversation, not a task
+### Follower account contract — the unlock
+
+Everything else in the product is downstream of this: until it exists the mirror engine
+cannot place a single real echo. Design and rationale in `TECHNICAL_ARCHITECTURE.md`
+("The on-chain flow — corrected 2026-09-09").
+
+- [ ] `[BE]` Solidity toolchain in-repo — npm `solc` + a viem deploy script, no Foundry (the repo is already npm/TS) — `packages/contracts/`
+- [ ] `[BE]` `EchoAccount.sol` — owner/executor split. Executor: `placeOrder`, `cancelOrder`. Owner only: `withdraw`, `setCaps`, `setAllowedPool`, `setExecutorExpiry`, `pause`/`unpause`, `revokeExecutor`. Guards on every executor call: not paused, inside expiry, pool allowlisted, per-order cap, cumulative cap
+- [ ] `[BE]` `EchoAccountFactory.sol` — CREATE2 so the frontend can show a follower their account address before they pay to deploy it, and so a redeploy can never silently produce a second account
+- [ ] `[BE]` Outcome-token and collateral plumbing — the account must approve the pool to pull tUSDC, hold ERC-6909 outcome tokens, and be able to `redeem` a settled position so proceeds land back where only the owner can withdraw them
+- [ ] `[BE]` Contract tests against live Shannon — the adversarial ones are the point: executor cannot withdraw, cannot raise its own caps, cannot extend its own expiry, cannot add a pool, cannot act after `pause()`, cannot act after expiry, cannot act after `revokeExecutor()`. Owner can withdraw in every one of those states
+- [ ] `[BE]` Deploy the factory to Shannon, record the address, and make it a public constant so a follower can verify what they are deploying
+- [ ] `[BE]` Rework `mirror/engine.ts` from `pool.placeBinaryOrderFor(owner, …)` to `account.placeOrder(…)`, keeping the idempotency, rate limit, kill switch and `failed`-state handling already built
+- [ ] `[BE]` DB: `proxy_grant.account_address`, plus reading caps/expiry so the engine can skip an account that would revert instead of burning gas discovering it
+- [ ] `[FE]` `/connect` rebuilt around deploy → fund → configure, replacing the grant step that cannot work. The caps and expiry screen is where a follower states their risk appetite, so it is the most important screen in the product and gets written like it
+- [ ] `[FE]` `/me`: show the account address, its balance, its caps, its expiry and a countdown, with pause and revoke as first-class buttons
+- [ ] `[BE]` **First real echo, end to end, on chain** — a seed trader fills, and a follower's account places the mirrored order. This is the milestone the whole build has been pointing at
+- [ ] `[BE]` Re-point `verify:custody` at the new design: prove on chain that the executor cannot move a follower's funds. Same claim as before, now provable — this is the demo-video moment
+
 - [ ] `[BE]` Organic-trader discovery: a non-seed wallet that clears the sample threshold gets indexed automatically — `apps/worker/src/seeds/organicDiscovery.ts`
 - [ ] `[FE]` `[BE]` Trader opt-in/consent flow — a real trader chooses to be public and followable rather than being silently indexed; profile + bio
 - [ ] `[BE]` On-chain publishing of calibration scores + tombstones, so other apps/agents can consume Echonome's rankings trustlessly — `apps/worker/src/calibration/publish.ts`
@@ -70,13 +88,14 @@ date; it does not determine what's in this list or how it's ordered.*
 ## Phase 6 — Reliability & Safety Hardening
 
 - [x] `[BE]` Idempotency — real unique indexes, not app-level races: `(trader_id, fill_id)` on `decision`, `(copy_link_id, source_decision_id)` on `echo`, both enforced with `ON CONFLICT ... DO NOTHING` at the query site — `apps/worker/src/db/schema.sql`, `chain/watcher.ts`, `mirror/engine.ts`
+- [ ] `[BE]` **Liveness alerting — alert on absence, not on errors.** Every defect found so far (four on 08 Sep, two more on 09 Sep) presented as a healthy process writing nothing. A heartbeat table the worker stamps each tick, plus checks that fire when: no new decision in N minutes while a target market is live and has volume; no settlement in N hours while resolved markets exist; the watcher's last-seen fill timestamp falls behind chain head; echo failure rate over a threshold — `apps/worker/src/health/`
 - [ ] `[BE]` Reorg handling — a confirmation-depth policy before treating a fill or a settled outcome as final
 - [x] `[BE]` Partial-fill / failure-path handling — real `echo.status = 'failed'` + `failure_reason` column, populated on every caught error (order revert, rate limit) instead of just a log line — `apps/worker/src/mirror/engine.ts`
 - [x] `[BE]` Rate limiting + a kill switch — 20 echoes/min sliding-window cap, `MIRROR_KILL_SWITCH` env var short-circuits all echoing — `apps/worker/src/mirror/engine.ts`
 - [x] `[BE]` Live proof of the custody model — `npm run verify:operator-gate` (`apps/worker/src/testnetVerifyOperatorGate.ts`), read-only, reproduces on real testnet that an unauthorised operator cannot place an order for someone else. SC-001's "no grant blocks it" half is proven; the "a grant unblocks it" half is proven **impossible on this venue today**, which is a stronger and more useful result than the one we set out to get
 - [ ] `[BE]` Real operator-key management — a secrets manager at minimum (Railway secrets), a KMS/HSM-backed signer before this ever touches real value, and a rotation plan
 - [x] `[BE]` Automated tests — 16 passing (`npm test` in `apps/worker`): calibration engine (known inputs → known Brier scores), the exact side-mapping bug that crashed the watcher live, tick-price rounding. **Live, real-testnet SC-001/SC-005 proof** (`npm run verify:custody`) is half-done: no-grant-blocks is PROVEN on-chain; the grant step itself is blocked on a missing registry address — see FEEDBACK.md 🚧
-- [x] `[BE]` Structured logging — JSON lines with level/component via `apps/worker/src/logger.ts`, wired into `watcher.ts` and `mirror/engine.ts` (the two money-adjacent paths); `seeds/*.ts` and `settlement.ts` still on plain console output. Real error tracking (Sentry or equivalent) needs an account this worker doesn't have — flagged, not built
+- [~] `[BE]` Structured logging — JSON lines with level/component via `apps/worker/src/logger.ts`, wired into `watcher.ts` and `mirror/engine.ts` (the two money-adjacent paths). **`seeds/*.ts` and `settlement.ts` are still on plain `console.log`, and that directly cost us: the seed maker's 314 consecutive `OrderAlreadyExpired` reverts were invisible as a pattern because they were unstructured, untagged stack dumps in a 2 MB log.** Finish the wiring, and give every strategy tick a machine-countable outcome. Real error tracking (Sentry or equivalent) needs an account this worker doesn't have — flagged, not built
 
 ## Phase 7 — Business Model & Compliance
 
