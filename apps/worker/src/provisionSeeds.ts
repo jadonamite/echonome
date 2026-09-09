@@ -20,6 +20,13 @@ const WALLET_FILE = new URL("../.seed-wallets.json", import.meta.url).pathname;
 const erc20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 
 export function seedWallets(): Record<string, `0x${string}`> {
+  if (process.env.EXTRA_SEED_WALLETS) {
+    try {
+      return JSON.parse(process.env.EXTRA_SEED_WALLETS);
+    } catch (err) {
+      console.error("[provisionSeeds] failed to parse EXTRA_SEED_WALLETS:", err);
+    }
+  }
   if (!existsSync(WALLET_FILE)) return {};
   return JSON.parse(readFileSync(WALLET_FILE, "utf8"));
 }
