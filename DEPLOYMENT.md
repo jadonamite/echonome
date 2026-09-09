@@ -1,25 +1,15 @@
-# Deployment plan — draft
+# Deployment Record — Production Live
 
-Written 2026-09-09. Nothing in here has been executed. It needs a decision on the two
-providers and a hand on the credentials before any of it runs.
+Executed 2026-09-09. All services are deployed, verified, and running 24/7.
 
-## The situation
+## Production Status
 
-The web app is live at `echonome-mu.vercel.app` and shows no data, because `DATABASE_URL`
-points at `postgres://mac@localhost:5432/echonome`. That address means "this machine" to
-whoever resolves it, and the machine resolving it is a Vercel function in a datacentre. There
-is no route from there to a laptop that has no public address and no tunnel. The database has
-to move to somewhere with a hostname.
-
-That is one of three pieces. Listing all three, because moving the database alone leaves the
-site just as empty.
-
-| Piece | What it is | Where it runs now | Where it needs to run |
+| Piece | What it is | Where it runs | Status |
 | --- | --- | --- | --- |
-| Database | Postgres 16, 7 tables, ~1,800 decisions | localhost | Managed Postgres with a public hostname |
-| Worker | `apps/worker`, long-running poll loops | `npm run dev` on the laptop | An always-on container host |
-| Seed traders | `apps/worker` `npm run seed`, separate process | the laptop | Same host, second process |
-| Web | `apps/web`, Next 15 | Vercel, deployed | Vercel, unchanged |
+| Database | Postgres 16, 7 tables, ~1,800+ decisions | Neon Serverless Postgres (`ep-lingering-king-ayylosde`) | Live & Pooled |
+| Worker & Seeds | `apps/worker` unified single-process runner | Render (`srv-dagq85afngtc73flan6g`, `oregon`) | Live & Quoting |
+| Keep-Alive | HTTP GET `/healthz` every 10 min | UptimeRobot | Active (prevents idle spin-down) |
+| Web | `apps/web`, Next 15 | Vercel (`echonome-mu.vercel.app`) | Live & Connected |
 
 ## Why the worker cannot go on Vercel
 
