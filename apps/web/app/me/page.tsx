@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
+import type { Address } from "viem";
 import type { EchoView, CopyLinkView } from "@/lib/queries";
+import { AccountPanel } from "@/components/account-panel";
 import { shortMarket, sideLabel, timeAgo } from "@/lib/format";
 
 /**
@@ -16,7 +18,7 @@ export default function MePage() {
   const { address, isConnected } = useAccount();
   const [echoes, setEchoes] = useState<EchoView[]>([]);
   const [copyLinks, setCopyLinks] = useState<CopyLinkView[]>([]);
-  const [grant, setGrant] = useState<{ id: string; grantedAt: string } | null>(null);
+  const [grant, setGrant] = useState<{ id: string; grantedAt: string; accountAddress: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -163,25 +165,17 @@ export default function MePage() {
         )}
       </section>
 
-      {grant && (
-        <section className="space-y-3 border border-rule bg-surface px-5 py-4">
-          <h2 className="text-sm font-medium text-ink">Echonome&apos;s permission</h2>
-          <p className="max-w-2xl text-sm leading-relaxed text-ink-2">
-            Granted {timeAgo(grant.grantedAt)}. Revoking stops every copy at once and tells
-            the worker to ignore you entirely. To remove the permission at the protocol
-            level as well, send the same grant call from your wallet with{" "}
-            <code className="font-mono text-xs">approved: false</code> — that one is yours
-            alone, and nothing here can undo it.
-          </p>
-          <button
-            type="button"
-            onClick={revokeEverything}
-            disabled={busyId === "grant"}
-            className="border border-critical px-3 py-1.5 text-sm text-critical hover:bg-surface-raised disabled:opacity-40"
-          >
-            {busyId === "grant" ? "Revoking…" : "Revoke and stop everything"}
-          </button>
-        </section>
+      {grant?.accountAddress ? (
+        <AccountPanel accountAddress={grant.accountAddress as Address} />
+      ) : (
+        <Panel title="You haven't set up an account yet">
+          Copying a trader needs an account contract that holds your collateral — you own it,
+          and Echonome can only place orders inside limits you set.{" "}
+          <Link href="/connect" className="text-ink underline underline-offset-4">
+            Set one up
+          </Link>
+          .
+        </Panel>
       )}
 
       <section className="space-y-4">

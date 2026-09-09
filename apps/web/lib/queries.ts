@@ -254,14 +254,23 @@ export async function getCopyLinksForFollower(followerAddress: string): Promise<
 }
 
 /** The follower's live grant, if they have one that hasn't been revoked. */
-export async function getActiveGrant(followerAddress: string): Promise<{ id: string; operatorAddress: string; grantedAt: string } | null> {
-  const row = await queryOne<{ id: string; operator_address: string; granted_at: Date }>(
-    `SELECT id, operator_address, granted_at FROM proxy_grant
+export async function getActiveGrant(
+  followerAddress: string
+): Promise<{ id: string; operatorAddress: string; accountAddress: string | null; grantedAt: string } | null> {
+  const row = await queryOne<{ id: string; operator_address: string; account_address: string | null; granted_at: Date }>(
+    `SELECT id, operator_address, account_address, granted_at FROM proxy_grant
      WHERE lower(follower_address) = lower($1) AND revoked_at IS NULL
      ORDER BY granted_at DESC LIMIT 1`,
     [followerAddress]
   );
-  return row ? { id: row.id, operatorAddress: row.operator_address, grantedAt: row.granted_at.toISOString() } : null;
+  return row
+    ? {
+        id: row.id,
+        operatorAddress: row.operator_address,
+        accountAddress: row.account_address,
+        grantedAt: row.granted_at.toISOString(),
+      }
+    : null;
 }
 
 export interface TraceTick {

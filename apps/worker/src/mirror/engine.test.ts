@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sizeFor } from "./engine.js";
+import { sizeFor, toLotQuantity } from "./engine.js";
 
 /**
  * Echo sizing. This replaced a `followerStake = 1` placeholder that made every echo the same
@@ -37,5 +37,49 @@ describe("sizeFor", () => {
     expect(sizeFor({ quantity: "1000000" }, { size_fraction: "0" })).toBeNull();
     expect(sizeFor({ quantity: "1000000" }, { size_fraction: "-0.5" })).toBeNull();
     expect(sizeFor({ quantity: "1000000" }, { size_fraction: "not-a-number" })).toBeNull();
+  });
+});
+
+/**
+ * REGRESSION, found on the first two real echoes this engine ever placed — both reverted on
+ * chain with `InvalidQuantity`. The pool enforces a lot grid and a minimum order size and
+ * refuses anything off it, exactly as it refuses an off-tick price. A 25% copy of a 55,000-unit
+ * fill is 13,750, which is not a multiple of the 1,000-unit lot.
+ */
+describe("toLotQuantity", () => {
+  const LOT = 1000n;   // 10^(6 baseDecimals - 3 amount precision)
+  const MIN = 1000n;   // limits.amount.min of 0.001
+
+  it("floors a quantity onto the lot grid", () => {
+    // The exact value that reverted on chain.
+    expect(toLotQuantity(13_750n, LOT, MIN)).toBe(13_000n);
+    expect(toLotQuantity(1_999n, LOT, MIN)).toBe(1_000n);
+  });
+
+  it("leaves an already-aligned quantity alone", () => {
+    expect(toLotQuantity(13_000n, LOT, MIN)).toBe(13_000n);
+    expect(toLotQuantity(1_000_000n, LOT, MIN)).toBe(1_000_000n);
+  });
+
+  it("refuses anything under the market's minimum rather than paying gas to be told no", () => {
+    // The other value that reverted: 25% of a 2,000-unit fill is 500, below the minimum.
+    expect(toLotQuantity(500n, LOT, MIN)).toBeNull();
+    expect(toLotQuantity(999n, LOT, MIN)).toBeNull();
+    expect(toLotQuantity(0n, LOT, MIN)).toBeNull();
+  });
+
+  it("refuses when flooring lands on zero even with no minimum set", () => {
+    expect(toLotQuantity(999n, LOT, 0n)).toBeNull();
+  });
+
+  it("never rounds up — a follower is never traded larger than they asked", () => {
+    for (const raw of [1_001n, 1_500n, 1_999n]) {
+      expect(toLotQuantity(raw, LOT, MIN)!).toBeLessThanOrEqual(raw);
+    }
+  });
+
+  it("honours a market whose grid is not this one rather than hardcoding it", () => {
+    expect(toLotQuantity(13_750n, 100n, 100n)).toBe(13_700n);
+    expect(toLotQuantity(13_750n, 1n, 1n)).toBe(13_750n);
   });
 });

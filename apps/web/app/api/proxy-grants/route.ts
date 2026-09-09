@@ -19,20 +19,29 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
  * their own wallet, which no code of ours can undo.
  */
 export async function POST(request: Request) {
-  let body: { followerAddress?: string; operatorAddress?: string; scope?: string };
+  let body: { followerAddress?: string; operatorAddress?: string; scope?: string; accountAddress?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Expected a JSON body" }, { status: 400 });
   }
 
-  const { followerAddress, operatorAddress, scope } = body;
+  const { followerAddress, operatorAddress, scope, accountAddress } = body;
 
   if (!followerAddress || !ADDRESS.test(followerAddress)) {
     return NextResponse.json({ error: "followerAddress must be a wallet address" }, { status: 400 });
   }
   if (!operatorAddress || !ADDRESS.test(operatorAddress)) {
     return NextResponse.json({ error: "operatorAddress must be a wallet address" }, { status: 400 });
+  }
+  // The account is where the authorisation actually lives now. Without it the worker has
+  // nothing to trigger, so a grant recorded without one would be a row that looks like
+  // permission and confers none — refused rather than stored.
+  if (!accountAddress || !ADDRESS.test(accountAddress)) {
+    return NextResponse.json(
+      { error: "accountAddress must be the follower's deployed EchoAccount" },
+      { status: 400 }
+    );
   }
 
   try {
@@ -43,14 +52,16 @@ export async function POST(request: Request) {
       [followerAddress, operatorAddress]
     );
     if (existing) {
+      // Re-pointing rather than duplicating: a follower who redeployed keeps one grant row.
+      await queryOne(`UPDATE proxy_grant SET account_address = $1 WHERE id = $2`, [accountAddress, existing.id]);
       return NextResponse.json({ grant: existing }, { status: 200 });
     }
 
     const grant = await queryOne(
-      `INSERT INTO proxy_grant (follower_address, operator_address, scope)
-       VALUES ($1, $2, $3)
-       RETURNING id, follower_address, operator_address, scope, granted_at`,
-      [followerAddress, operatorAddress, scope ?? "place_and_cancel"]
+      `INSERT INTO proxy_grant (follower_address, operator_address, scope, account_address)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, follower_address, operator_address, scope, account_address, granted_at`,
+      [followerAddress, operatorAddress, scope ?? "echo_account", accountAddress]
     );
     return NextResponse.json({ grant }, { status: 201 });
   } catch (err) {

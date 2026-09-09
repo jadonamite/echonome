@@ -1,115 +1,209 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useAccount, useChainId, useWalletClient } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useWalletClient } from "wagmi";
+import { formatUnits, parseUnits, type Address } from "viem";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import {
-  PLACE_ORDER_FOR_SELECTOR,
-  CANCEL_ORDER_FOR_SELECTOR,
-} from "@somnia-chain/markets-sdk";
-import {
-  createBrowserExchange,
-  OPERATOR_ADDRESS,
-  OPERATOR_GRANT_APPLIES_TO_BINARY,
-  OPERATOR_PERMISSIONS_REGISTRY,
-} from "@/lib/somnia";
+  COLLATERAL,
+  COLLATERAL_DECIMALS,
+  DEFAULT_GRANT_HOURS,
+  ECHO_ACCOUNT_FACTORY,
+  echoAccountAbi,
+  echoAccountFactoryAbi,
+  erc20Abi,
+} from "@/lib/echoAccount";
+import { OPERATOR_ADDRESS } from "@/lib/somnia";
 import { shortAddress } from "@/lib/format";
 
 /**
- * The only page where a user signs anything. Two on-chain actions, both from their own
- * wallet, neither of them a transfer to us:
+ * Setup, in three real steps: deploy an account you own, put money in it, decide what
+ * Echonome is allowed to do with that money.
  *
- *   1. Collateral — mint testnet USDC into their own wallet (the SDK's own faucet).
- *   2. The grant — `setOperatorApprovalGlobal` naming Echonome's operator address and
- *      exactly two selectors: place-order-for and cancel-order-for. Nothing else.
+ * This replaced a single "grant operator permission" signature that could not work — Event
+ * Contract pools do not honour DreamDEX's operator registry, proven on chain (FEEDBACK.md).
+ * The replacement is more work for the follower and a better deal: instead of an approval
+ * whose limits live in someone else's contract, they get their own contract whose limits are
+ * theirs, readable, and revocable without our cooperation.
  *
- * The grant is the whole security story, so it is spelled out on screen rather than
- * buried in a tooltip: what the operator can do, what it provably cannot, and how to
- * take it back. See TECHNICAL_ARCHITECTURE.md "The on-chain flow the frontend drives
- * directly".
+ * The limits screen is the most important screen in this product, so it is written like it
+ * matters rather than tucked behind an "advanced" toggle.
  */
+
+const FACTORY_EXPLORER = `https://shannon-explorer.somnia.network/address/${ECHO_ACCOUNT_FACTORY}`;
+
+type Step = "connect" | "deploy" | "fund" | "configure" | "done";
+
 export default function ConnectPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
 
-  const [funding, setFunding] = useState(false);
-  const [fundResult, setFundResult] = useState<string | null>(null);
-  const [granting, setGranting] = useState(false);
-  const [grantResult, setGrantResult] = useState<string | null>(null);
+  const [accountAddress, setAccountAddress] = useState<Address | null>(null);
+  const [isDeployed, setIsDeployed] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<bigint>(0n);
+  const [accountBalance, setAccountBalance] = useState<bigint>(0n);
+  const [executorActive, setExecutorActive] = useState(false);
+
+  const [depositAmount, setDepositAmount] = useState("100");
+  const [perOrderCap, setPerOrderCap] = useState("10");
+  const [totalCap, setTotalCap] = useState("100");
+
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onRightChain = chainId === somniaShannon.id;
-  const canAct = isConnected && onRightChain && !!walletClient;
+  const ready = isConnected && onRightChain && !!walletClient && !!publicClient;
 
-  async function fundCollateral() {
-    if (!walletClient) return;
-    setFunding(true);
-    setError(null);
+  const refresh = useCallback(async () => {
+    if (!address || !publicClient) return;
     try {
-      const exchange = createBrowserExchange(walletClient);
-      const result = await exchange.trader.faucet();
-      setFundResult(result.hash);
-    } catch (err) {
-      setError(readableError(err));
-    } finally {
-      setFunding(false);
-    }
-  }
+      const predicted = (await publicClient.readContract({
+        address: ECHO_ACCOUNT_FACTORY,
+        abi: echoAccountFactoryAbi,
+        functionName: "accountFor",
+        args: [address],
+      })) as Address;
+      setAccountAddress(predicted);
 
-  async function grant() {
-    if (!walletClient || !address || !OPERATOR_ADDRESS) return;
-    setGranting(true);
-    setError(null);
-    try {
-      const exchange = createBrowserExchange(walletClient);
+      const code = await publicClient.getCode({ address: predicted });
+      const exists = !!code && code !== "0x";
+      setIsDeployed(exists);
 
-      // The real call. Exactly two selectors — an operator holding this grant can place
-      // and cancel orders for this owner and can do nothing else with their funds.
-      await exchange.trader.setOperatorApprovalGlobal({
-        operator: OPERATOR_ADDRESS,
-        selectors: [PLACE_ORDER_FOR_SELECTOR, CANCEL_ORDER_FOR_SELECTOR],
-        approved: true,
-        operatorRegistry: OPERATOR_PERMISSIONS_REGISTRY,
-      });
+      const [wallet, acct] = await Promise.all([
+        publicClient.readContract({ address: COLLATERAL, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+        exists
+          ? publicClient.readContract({ address: COLLATERAL, abi: erc20Abi, functionName: "balanceOf", args: [predicted] })
+          : Promise.resolve(0n),
+      ]);
+      setWalletBalance(wallet as bigint);
+      setAccountBalance(acct as bigint);
 
-      // Only after the chain confirms it do we record the local mirror of it.
-      const response = await fetch("/api/proxy-grants", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          followerAddress: address,
-          operatorAddress: OPERATOR_ADDRESS,
-          scope: "place_and_cancel",
-        }),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "The grant confirmed on chain but could not be recorded");
+      if (exists) {
+        const status = (await publicClient.readContract({
+          address: predicted,
+          abi: echoAccountAbi,
+          functionName: "executorStatus",
+        })) as readonly [boolean, boolean, boolean, bigint, bigint];
+        setExecutorActive(status[0]);
       }
-      setGrantResult("granted");
     } catch (err) {
-      setError(readableError(err));
+      setError(readable(err));
+    }
+  }, [address, publicClient]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  async function run(label: string, fn: () => Promise<`0x${string}`>) {
+    setBusy(label);
+    setError(null);
+    try {
+      const hash = await fn();
+      await publicClient!.waitForTransactionReceipt({ hash });
+      await refresh();
+    } catch (err) {
+      setError(readable(err));
     } finally {
-      setGranting(false);
+      setBusy(null);
     }
   }
+
+  const deploy = () =>
+    run("deploy", () =>
+      walletClient!.writeContract({
+        address: ECHO_ACCOUNT_FACTORY,
+        abi: echoAccountFactoryAbi,
+        functionName: "deploy",
+        gas: 30_000_000n,
+      })
+    );
+
+  const deposit = () =>
+    run("deposit", () =>
+      walletClient!.writeContract({
+        address: COLLATERAL,
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [accountAddress!, parseUnits(depositAmount || "0", COLLATERAL_DECIMALS)],
+      })
+    );
+
+  async function configure() {
+    // Captured into locals after the guard: TypeScript cannot narrow a module-level
+    // possibly-undefined value across the closures below, and the alternative is scattering
+    // non-null assertions through code that decides what an operator is allowed to do.
+    const account = accountAddress;
+    const executor = OPERATOR_ADDRESS;
+    if (!account || !executor) return;
+    const expiry = BigInt(Math.floor(Date.now() / 1000) + DEFAULT_GRANT_HOURS * 3600);
+    await run("caps", () =>
+      walletClient!.writeContract({
+        address: account,
+        abi: echoAccountAbi,
+        functionName: "setCaps",
+        args: [
+          parseUnits(perOrderCap || "0", COLLATERAL_DECIMALS),
+          parseUnits(totalCap || "0", COLLATERAL_DECIMALS),
+        ],
+      })
+    );
+    await run("authorise", () =>
+      walletClient!.writeContract({
+        address: account,
+        abi: echoAccountAbi,
+        functionName: "setExecutor",
+        args: [executor, expiry],
+      })
+    );
+    await fetch("/api/proxy-grants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        followerAddress: address,
+        operatorAddress: executor,
+        accountAddress: account,
+        scope: "echo_account",
+      }),
+    });
+    await refresh();
+  }
+
+  const step: Step = !isConnected || !onRightChain
+    ? "connect"
+    : !isDeployed
+      ? "deploy"
+      : accountBalance === 0n
+        ? "fund"
+        : !executorActive
+          ? "configure"
+          : "done";
 
   return (
     <div className="space-y-10">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Authorise Echonome</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Set up your account</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-ink-2">
-          Copying a trader means Echonome places orders for you. That takes a permission
-          you grant on chain, from your own wallet, scoped to two actions. It is not a
-          deposit and not a transfer — your collateral never leaves your own account, and
-          Echonome cannot move it.
+          Copying a trader means Echonome places orders using your money. So you get your own
+          account contract to hold it: you own it, you fund it, you set what we may do with it,
+          and you can cut us off at any moment without asking. We can place and cancel orders
+          inside your limits. We cannot withdraw a cent — not by policy, but because no
+          function exists that would let us.
+        </p>
+        <p className="text-xs text-ink-3">
+          The contract is deployed from{" "}
+          <a href={FACTORY_EXPLORER} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-ink-2">
+            {shortAddress(ECHO_ACCOUNT_FACTORY)}
+          </a>{" "}
+          — read it before you trust it.
         </p>
       </section>
 
       <ol className="space-y-px border border-rule bg-rule">
-        <Step
+        <StepRow
           n={1}
           title="Connect your wallet"
           done={isConnected && onRightChain}
@@ -118,128 +212,147 @@ export default function ConnectPage() {
               ? "Use the button in the header. Somnia Shannon testnet."
               : !onRightChain
                 ? "Connected, but on the wrong network — switch to Somnia Shannon."
-                : `Connected as ${shortAddress(address!)} on Somnia Shannon.`
+                : `Connected as ${shortAddress(address!)}.`
           }
         />
 
-        <Step
+        <StepRow
           n={2}
-          title="Get testnet collateral"
-          done={!!fundResult}
+          title="Deploy your account"
+          done={isDeployed}
           state={
-            fundResult
-              ? "Test USDC minted to your wallet."
-              : "Orders escrow tUSDC, not the native token — a wallet with gas but no collateral cannot trade."
+            isDeployed
+              ? `Deployed at ${shortAddress(accountAddress!)} — owned by you.`
+              : accountAddress
+                ? `It will be deployed at ${shortAddress(accountAddress)}. That address is fixed in advance, so it cannot change after you fund it.`
+                : "Connect to see your account address."
           }
         >
-          <button
-            type="button"
-            onClick={fundCollateral}
-            disabled={!canAct || funding}
-            className="border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-40"
-          >
-            {funding ? "Minting…" : "Mint test USDC"}
-          </button>
-        </Step>
-
-        <Step
-          n={3}
-          title="Grant place & cancel permission"
-          done={grantResult === "granted"}
-          state={
-            grantResult === "granted"
-              ? "Echonome can now place and cancel orders for you. Nothing else."
-              : "One signature, scoped to two function selectors."
-          }
-        >
-          <div className="space-y-4">
-            <div className="border border-rule bg-plane px-4 py-3">
-              <p className="text-[10px] uppercase tracking-wider text-ink-3">
-                Exactly what you are granting
-              </p>
-              <ul className="mt-2 space-y-1.5 text-xs text-ink-2">
-                <li>
-                  <span className="text-good">Can</span> place an order for you —{" "}
-                  <code className="font-mono text-ink-3">{PLACE_ORDER_FOR_SELECTOR}</code>
-                </li>
-                <li>
-                  <span className="text-good">Can</span> cancel an order it placed —{" "}
-                  <code className="font-mono text-ink-3">{CANCEL_ORDER_FOR_SELECTOR}</code>
-                </li>
-                <li>
-                  <span className="text-critical">Cannot</span> withdraw, transfer, or
-                  approve anything — those selectors are not in the grant, so the call
-                  reverts at the contract, not at our policy.
-                </li>
-                <li>
-                  <span className="text-ink">Revocable</span> by you at any time, from your
-                  own wallet, without asking us.
-                </li>
-              </ul>
-            </div>
-
-            {!OPERATOR_ADDRESS && (
-              <Blocked title="No operator address configured">
-                <code className="font-mono text-xs">NEXT_PUBLIC_OPERATOR_ADDRESS</code> is
-                unset, so there is no address to grant permission to. It must match the
-                wallet the worker signs echoes with.
-              </Blocked>
-            )}
-
-            {OPERATOR_ADDRESS && !OPERATOR_GRANT_APPLIES_TO_BINARY && (
-              <Blocked title="Event Contracts don't accept this grant yet">
-                <p>
-                  The registry is real and this call would land — the contract is{" "}
-                  <code className="font-mono text-xs">
-                    {OPERATOR_PERMISSIONS_REGISTRY}
-                  </code>
-                  . But it governs DreamDEX&apos;s spot pools, not Event Contract pools, and
-                  granting here would authorise nothing.
-                </p>
-                <p className="mt-2">
-                  That isn&apos;t a guess. With both a global and a per-pool grant recorded on
-                  chain for exactly this operator and selector, the order call still comes back{" "}
-                  <code className="font-mono text-xs">OnlyApprovedContracts</code> — and it
-                  comes back the same way when the owner places the order for themselves, so
-                  it isn&apos;t a per-user permission at all. Run{" "}
-                  <code className="font-mono text-xs">npm run verify:operator-gate</code> to
-                  watch it happen.
-                </p>
-                <p className="mt-2">
-                  So this step stays switched off. Recording an authorisation that grants
-                  nothing would be a lie told to you about your own money, and the entire
-                  point of Echonome is that it cannot touch your funds. Placing orders for
-                  someone else on Event Contracts currently needs DreamDEX to allowlist the
-                  caller at the protocol level.
-                </p>
-              </Blocked>
-            )}
-
-            <button
-              type="button"
-              onClick={grant}
-              disabled={!canAct || granting || !OPERATOR_ADDRESS || !OPERATOR_GRANT_APPLIES_TO_BINARY}
-              className="border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-40"
-            >
-              {granting ? "Waiting for your signature…" : "Grant permission"}
+          {!isDeployed && (
+            <button type="button" onClick={deploy} disabled={!ready || busy !== null} className={buttonClass}>
+              {busy === "deploy" ? "Deploying…" : "Deploy my account"}
             </button>
-          </div>
-        </Step>
+          )}
+        </StepRow>
+
+        <StepRow
+          n={3}
+          title="Fund it"
+          done={accountBalance > 0n}
+          state={
+            accountBalance > 0n
+              ? `Holding ${formatUnits(accountBalance, COLLATERAL_DECIMALS)} tUSDC. Withdrawable by you, only.`
+              : `Move collateral in. Your wallet has ${formatUnits(walletBalance, COLLATERAL_DECIMALS)} tUSDC.`
+          }
+        >
+          {isDeployed && (
+            <div className="flex flex-wrap items-center gap-3">
+              <label htmlFor="deposit" className="sr-only">
+                Amount to deposit, in tUSDC
+              </label>
+              <input
+                id="deposit"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                inputMode="decimal"
+                className="w-28 border border-edge bg-plane px-2 py-1.5 font-mono text-sm text-ink tnum"
+              />
+              <span className="text-xs text-ink-3">tUSDC</span>
+              <button type="button" onClick={deposit} disabled={!ready || busy !== null} className={buttonClass}>
+                {busy === "deposit" ? "Depositing…" : "Deposit"}
+              </button>
+            </div>
+          )}
+        </StepRow>
+
+        <StepRow
+          n={4}
+          title="Set your limits, then authorise"
+          done={executorActive}
+          state={
+            executorActive
+              ? "Echonome can place and cancel orders inside these limits, and nothing else."
+              : "This is the part that matters. Nothing can be traded until you set it."
+          }
+        >
+          {isDeployed && (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  id="per-order"
+                  label="Most one trade may use"
+                  value={perOrderCap}
+                  onChange={setPerOrderCap}
+                  hint="Bounds any single mistake."
+                />
+                <Field
+                  id="total-cap"
+                  label="Most we may spend in total"
+                  value={totalCap}
+                  onChange={setTotalCap}
+                  hint="A budget, not an allowance — it does not refill on its own."
+                />
+              </div>
+
+              <div className="border border-rule bg-plane px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wider text-ink-3">What you are authorising</p>
+                <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-ink-2">
+                  <li>
+                    <span className="text-good">Can</span> place and cancel orders on Event
+                    Contract markets, within the two limits above.
+                  </li>
+                  <li>
+                    <span className="text-critical">Cannot</span> withdraw, transfer, or approve
+                    anything. Cannot raise these limits. Cannot extend its own permission.
+                  </li>
+                  <li>
+                    <span className="text-ink">Expires</span> on its own after{" "}
+                    {DEFAULT_GRANT_HOURS} hours. A permission you have forgotten about is one
+                    you did not agree to.
+                  </li>
+                  <li>
+                    <span className="text-ink">Stoppable</span> by you instantly, from{" "}
+                    <Link href="/me" className="underline underline-offset-4">
+                      My echoes
+                    </Link>
+                    , without our involvement.
+                  </li>
+                </ul>
+              </div>
+
+              {!OPERATOR_ADDRESS && (
+                <p className="border-l-2 border-warning bg-plane px-4 py-3 text-xs text-ink-2">
+                  🚧 <code className="font-mono">NEXT_PUBLIC_OPERATOR_ADDRESS</code> is unset, so
+                  there is no executor to authorise.
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={configure}
+                disabled={!ready || busy !== null || !OPERATOR_ADDRESS}
+                className={buttonClass}
+              >
+                {busy ? "Confirm in your wallet…" : executorActive ? "Update limits" : "Set limits and authorise"}
+              </button>
+              <p className="text-xs text-ink-3">Two signatures: the limits, then the authorisation.</p>
+            </div>
+          )}
+        </StepRow>
       </ol>
 
       {error && (
-        <p className="border-l-2 border-critical bg-surface px-4 py-3 text-sm text-ink-2">
-          {error}
-        </p>
+        <p className="border-l-2 border-critical bg-surface px-4 py-3 text-sm text-ink-2">{error}</p>
       )}
 
-      {grantResult === "granted" && (
+      {step === "done" && (
         <div className="border border-rule bg-surface px-5 py-4">
-          <p className="text-sm text-ink">You&apos;re set up.</p>
-          <Link
-            href="/"
-            className="mt-3 inline-block border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised"
-          >
+          <p className="text-sm text-ink">
+            You&apos;re set up. Your account holds{" "}
+            {formatUnits(accountBalance, COLLATERAL_DECIMALS)} tUSDC and Echonome may trade
+            inside your limits.
+          </p>
+          <Link href="/" className="mt-3 inline-block border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised">
             Pick a trader to copy
           </Link>
         </div>
@@ -248,7 +361,43 @@ export default function ConnectPage() {
   );
 }
 
-function Step({
+const buttonClass =
+  "border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-40";
+
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ink-3">
+        {label}
+      </label>
+      <div className="mt-1.5 flex items-center gap-2">
+        <input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          inputMode="decimal"
+          className="w-28 border border-edge bg-plane px-2 py-1.5 font-mono text-sm text-ink tnum"
+        />
+        <span className="text-xs text-ink-3">tUSDC</span>
+      </div>
+      <p className="mt-1 text-xs text-ink-3">{hint}</p>
+    </div>
+  );
+}
+
+function StepRow({
   n,
   title,
   state,
@@ -283,18 +432,8 @@ function Step({
   );
 }
 
-function Blocked({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="border-l-2 border-warning bg-plane px-4 py-3">
-      <p className="text-xs font-medium text-warning">🚧 {title}</p>
-      <div className="mt-1.5 text-xs leading-relaxed text-ink-2">{children}</div>
-    </div>
-  );
-}
-
-/** Contract reverts carry a decoded `errorName`; anything else falls back to its message. */
-function readableError(err: unknown): string {
-  const name = (err as { errorName?: string })?.errorName;
-  if (name) return `The transaction reverted: ${name}`;
-  return (err as Error)?.message ?? "Something went wrong";
+function readable(err: unknown): string {
+  const e = err as { errorName?: string; shortMessage?: string; message?: string };
+  if (e?.errorName) return `The transaction reverted: ${e.errorName}`;
+  return e?.shortMessage ?? e?.message ?? "Something went wrong";
 }

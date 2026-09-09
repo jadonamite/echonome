@@ -2,7 +2,7 @@ import { createWalletClient, createPublicClient, http, type Address } from "viem
 import { privateKeyToAccount } from "viem/accounts";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { ORDER_KIND } from "@somnia-chain/markets-sdk";
-import { parseAbi } from "viem";
+import { echoAccountAbi } from "../chain/echoAccount.js";
 import { createReadOnlyExchange } from "../chain/client.js";
 import { query, queryOne } from "../db/client.js";
 import { createLogger } from "../logger.js";
@@ -30,15 +30,6 @@ const log = createLogger("mirror");
  * point of it. Discovering that by burning gas on a revert would be both wasteful and useless
  * to the follower, so the failure is read first and recorded with a reason they can act on.
  */
-
-/** The slice of EchoAccount this engine uses. Kept as a literal here rather than imported
- *  from the contracts package's build output, so the worker needs no build step to run. */
-const echoAccountAbi = parseAbi([
-  "function placeOrder(address pool, uint8 kind, uint256 price, uint256 quantity, uint64 expireTimestampNs, uint8 orderType, uint8 selfMatchingOption, uint64 userData) returns (uint128)",
-  "function executorStatus() view returns (bool active, bool isPaused, bool expired, uint64 expiry, uint256 budgetLeft)",
-  "function allowedPool(address) view returns (bool)",
-  "function executor() view returns (address)",
-]);
 
 const EXPIRY_CUTOFF_MINUTES = 5; // keep in sync with packages/shared/src/types.ts
 const ORDER_TYPE_IOC = 2; // ImmediateOrCancel — execute now against the book or cancel, never rest
@@ -154,8 +145,45 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
    * every price for the same reason.
    */
   const PRICE_TICK = 1000n;
-  const rawPrice = BigInt(Math.round(Number(market.info.lastPrice ?? 500_000) ));
-  const price = (rawPrice / PRICE_TICK) * PRICE_TICK;
+
+  /**
+   * Price the echo to actually CROSS the book, not to look reasonable.
+   *
+   * The first version crossed at the market's last traded price, and every IOC order it sent
+   * reverted `ImmediateOrCancelNoFill` — last price was 0.945 while the best ask sat at 0.947,
+   * so the order was priced just under the liquidity it was trying to take. An
+   * immediate-or-cancel order that does not reach the touch is not a conservative order, it is
+   * a guaranteed failure that still costs gas.
+   *
+   * So: a YES buy takes the best ask; a NO buy takes the complement of the best bid, which is
+   * the same convention the seed strategies use. If the side we need is empty there is nothing
+   * to cross and no price would help — the caller records that rather than sending.
+   */
+  const book = await exchange.fetchOrderBook(market.symbol);
+  const bestAsk = (book.asks as [number, number][])[0]?.[0];
+  const bestBid = (book.bids as [number, number][])[0]?.[0];
+  const crossHuman = kind === ORDER_KIND.BUY_YES ? bestAsk : bestBid === undefined ? undefined : 1 - bestBid;
+
+  if (crossHuman === undefined) {
+    log.info("no liquidity on the side this echo needs, nothing to cross", {
+      decisionId: decision.id,
+      side: decision.side,
+    });
+    for (const link of copyLinks) {
+      await recordFailure(link.id, decision, 0, "no_liquidity_to_cross");
+    }
+    return;
+  }
+
+  const price = (BigInt(Math.round(crossHuman * 1e6)) / PRICE_TICK) * PRICE_TICK;
+
+  // The pool's quantity grid, read from the market rather than assumed. `precision.amount` is
+  // decimal places (3 here), so one lot is 10^(baseDecimals - precision) raw units, and
+  // `limits.amount.min` is the smallest order the pool will accept at all.
+  const baseDecimals = Number(market.info.baseDecimals ?? 6);
+  const amountPrecision = Number(market.precision?.amount ?? 3);
+  const lotRaw = 10n ** BigInt(Math.max(0, baseDecimals - amountPrecision));
+  const minRaw = BigInt(Math.round(Number(market.limits?.amount?.min ?? 0) * 10 ** baseDecimals));
 
   for (const link of copyLinks) {
     const grant = await queryOne<ProxyGrantRow>(
@@ -175,10 +203,24 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
       continue;
     }
 
-    const quantity = sizeFor(decision, link);
-    if (quantity === null) {
+    const scaled = sizeFor(decision, link);
+    if (scaled === null) {
       await recordFailure(link.id, decision, 0, "leader_size_unknown");
       log.warn("source decision has no recorded size, cannot scale the echo", { decisionId: decision.id });
+      continue;
+    }
+
+    const quantity = toLotQuantity(scaled, lotRaw, minRaw);
+    if (quantity === null) {
+      // Honest and useful: their chosen fraction of this particular trade is smaller than the
+      // market will accept. That is a fact about their settings meeting this trade, not an
+      // error, and it is the kind of thing they can fix by copying at a larger fraction.
+      await recordFailure(link.id, decision, Number(scaled), "below_market_minimum");
+      log.info("echo below the market's minimum order size, skipped", {
+        copyLinkId: link.id,
+        scaled: String(scaled),
+        minimum: String(minRaw),
+      });
       continue;
     }
 
@@ -230,15 +272,50 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
       continue;
     }
 
+    const orderArgs = [poolAddress, kind, price, quantity, expireTimestampNs, ORDER_TYPE_IOC, 0, 0n] as const;
+
+    // Simulate first. A reverting order costs the same gas whether we discover it before or
+    // after sending, and simulating gives the DECODED reason — the difference between telling a
+    // follower "reverted_on_chain" and telling them the book moved out from under their order.
+    // It also stopped a real waste: thirteen consecutive echoes were spending gas to be told
+    // ImmediateOrCancelNoFill.
     try {
-      const hash = await walletClient.writeContract({
+      await publicClient.simulateContract({
+        account,
         address: echoAccount,
         abi: echoAccountAbi,
         functionName: "placeOrder",
-        args: [poolAddress, kind, price, quantity, expireTimestampNs, ORDER_TYPE_IOC, 0, 0n],
-        gas: 3_000_000n,
+        args: orderArgs,
       });
-      await publicClient.waitForTransactionReceipt({ hash });
+    } catch (err) {
+      const reason = decodeReason(err);
+      await recordFailure(link.id, decision, Number(quantity), reason);
+      log.info("echo would revert, not sent", { copyLinkId: link.id, reason });
+      continue;
+    }
+
+    try {
+      const hash = await sendSerially(() =>
+        walletClient.writeContract({
+          address: echoAccount,
+          abi: echoAccountAbi,
+          functionName: "placeOrder",
+          args: orderArgs,
+          gas: 3_000_000n,
+        })
+      );
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        // BUG FOUND ON THE FIRST REAL ECHO: this branch did not exist. The engine waited for
+        // the receipt and never looked at its status, so a transaction that mined and REVERTED
+        // was recorded as 'pending' with a transaction hash — telling a follower their trade
+        // was placed and awaiting settlement when it had already failed. That is precisely the
+        // silent-wrong-state failure this codebase keeps producing, and it is worse here than
+        // anywhere else because it is a lie about someone's money.
+        await recordFailure(link.id, decision, Number(quantity), "reverted_on_chain");
+        log.error("echo transaction reverted on chain", { copyLinkId: link.id, hash, gasUsed: String(receipt.gasUsed) });
+        continue;
+      }
 
       // Idempotency: (copy_link_id, source_decision_id) is uniquely indexed (schema.sql), so a
       // retry after a crash between the tx confirming and this insert can never record the
@@ -260,8 +337,8 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
         hash,
       });
     } catch (err) {
-      const reason = (err as any)?.errorName ?? (err as Error).message ?? "unknown";
-      await recordFailure(link.id, decision, Number(quantity), String(reason).slice(0, 500));
+      const reason = decodeReason(err);
+      await recordFailure(link.id, decision, Number(quantity), reason);
       log.error("failed to echo", { copyLinkId: link.id, reason: String(reason) });
     }
   }
@@ -286,6 +363,58 @@ export function sizeFor(
   if (!Number.isFinite(fraction) || fraction <= 0) return null;
   const scaled = BigInt(Math.floor(Number(leaderQuantity) * fraction));
   return scaled > 0n ? scaled : null;
+}
+
+/**
+ * One operator key signs every echo, so two echoes in flight at once race for the same nonce —
+ * which is exactly what happened: five echoes failed with "Nonce provided for the transaction is
+ * too low" the first time this engine ran against a busy leader. viem reads the pending nonce
+ * per call, and two calls that read it before either lands read the same number.
+ *
+ * A promise chain is the whole fix at this scale: sends queue behind each other on one key.
+ * A multi-instance deployment needs real nonce management or a key per worker, which is the same
+ * caveat the rate limiter already carries.
+ */
+let sendQueue: Promise<unknown> = Promise.resolve();
+
+function sendSerially<T>(fn: () => Promise<T>): Promise<T> {
+  const next = sendQueue.then(fn, fn);
+  // Swallow on the chain itself so one failure doesn't poison every queued send after it; the
+  // caller still sees its own rejection through `next`.
+  sendQueue = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+
+/** A revert's decoded name where one exists — far more useful to a follower than a stack. */
+function decodeReason(err: unknown): string {
+  const e = err as { errorName?: string; cause?: any; shortMessage?: string; message?: string };
+  const name =
+    e?.errorName ?? e?.cause?.data?.errorName ?? e?.cause?.cause?.data?.errorName ?? undefined;
+  if (name) return String(name);
+  return String(e?.shortMessage ?? e?.message ?? "unknown").slice(0, 200);
+}
+
+/**
+ * Snap a quantity onto the pool's lot grid, or refuse.
+ *
+ * BUG FOUND ON THE FIRST REAL ECHO (2026-09-09): this is the quantity twin of the tick-price
+ * problem already in FEEDBACK.md, and it bit in exactly the same way. The pool enforces a lot
+ * grid AND a minimum order size, and it REVERTS `InvalidQuantity` rather than rounding for
+ * you. A 25% copy of a 55,000-unit fill is 13,750, which is not a multiple of the 1,000-unit
+ * lot, so the very first two echoes this engine ever placed both reverted on chain.
+ *
+ * Floors rather than rounds, for the same reason `sizeFor` does: never trade a follower larger
+ * than they asked. Returns null when the result falls under the market's minimum, so the caller
+ * records a reason the follower can understand instead of paying gas to be told no.
+ */
+export function toLotQuantity(raw: bigint, lotRaw: bigint, minRaw: bigint): bigint | null {
+  if (lotRaw <= 0n) return raw >= minRaw ? raw : null;
+  const floored = (raw / lotRaw) * lotRaw;
+  if (floored <= 0n || floored < minRaw) return null;
+  return floored;
 }
 
 /** A follower-visible failure with a reason, never just a log line. */
