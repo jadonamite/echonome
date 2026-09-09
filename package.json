@@ -9,6 +9,7 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "npm start -w @echonome/worker",
     "worker:dev": "npm run dev -w @echonome/worker",
     "web:dev": "npm run dev -w @echonome/web"
   },

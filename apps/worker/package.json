@@ -5,16 +5,16 @@
   "type": "module",
   "scripts": {
     "start": "node --import tsx src/index.ts",
-    "dev": "tsx watch --env-file=.env src/index.ts",
-    "seed": "tsx --env-file=.env src/seeds/runSeedTraders.ts",
-    "migrate": "tsx --env-file=.env src/db/migrate.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "seed": "tsx --env-file-if-exists=.env src/seeds/runSeedTraders.ts",
+    "migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts",
     "test": "vitest run",
-    "verify:custody": "tsx --env-file=.env src/testnetVerifyCustody.ts",
-    "verify:operator-gate": "tsx --env-file=.env src/testnetVerifyOperatorGate.ts",
-    "health": "tsx --env-file=.env src/healthCli.ts",
-    "recompute": "tsx --env-file=.env src/recomputeAll.ts",
-    "demo:follower": "tsx --env-file=.env src/setupDemoFollower.ts",
-    "seeds:provision": "tsx --env-file=.env src/provisionSeeds.ts"
+    "verify:custody": "tsx --env-file-if-exists=.env src/testnetVerifyCustody.ts",
+    "verify:operator-gate": "tsx --env-file-if-exists=.env src/testnetVerifyOperatorGate.ts",
+    "health": "tsx --env-file-if-exists=.env src/healthCli.ts",
+    "recompute": "tsx --env-file-if-exists=.env src/recomputeAll.ts",
+    "demo:follower": "tsx --env-file-if-exists=.env src/setupDemoFollower.ts",
+    "seeds:provision": "tsx --env-file-if-exists=.env src/provisionSeeds.ts"
   },
   "dependencies": {
     "@echonome/shared": "*",
