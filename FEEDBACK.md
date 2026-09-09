@@ -218,6 +218,48 @@ through it either:
   Contracts section says whether the same OperatorPermissionsRegistry grants cover binary
   pools. We had to grep the ABI to find out."*
 
+### Asked DreamDEX directly — and the answer confirmed the gap rather than closing it
+
+The question went to the event's Telegram dev community, and the reply pointed at
+`docs.dreamdex.io/trading/readme-1/operators`. Read live on 09 Sep, that page:
+
+- **Confirms the registry addresses**, letter for letter, including the Shannon one we had
+  already recovered by asking a spot pool. So the address half of the question is settled, and
+  it was always documented — just not anywhere the Event Contracts material points at.
+- Documents three capability selectors, all spot: `placeOrderFor` `0x80054449`,
+  `cancelOrderFor` `0xe37b444b`, `reduceOrderFor` `0x364c2587`.
+- Scopes itself explicitly to "every official **SpotPool**" and to the **SpotPoolRegistry**.
+- **Contains no mention of binary markets, Event Contracts, `placeBinaryOrder`,
+  `placeBinaryOrderFor`, or BinaryPool. Not one.**
+
+That answer did surface one hole in our own experiment, and it was worth closing: we had
+granted the *binary* selector but never the documented *spot* one. If a binary pool's gate is
+inherited from a shared OrderBook base, it might well check `placeOrderFor.selector`
+regardless of which function was actually called.
+
+So we granted **all four** — the three documented spot selectors plus the derived binary one —
+per-pool on the live BTC 1h pool AND globally, and read every one of them back as `true` on the
+registry:
+
+```
+0x80054449  global=true  perPool=true     (placeOrderFor,      documented)
+0xe37b444b  global=true  perPool=true     (cancelOrderFor,     documented)
+0x364c2587  global=true  perPool=true     (reduceOrderFor,     documented)
+0x5d97c566  global=true  perPool=true     (placeBinaryOrderFor, derived)
+
+placeBinaryOrderFor -> OnlyApprovedContracts
+```
+
+There is no selector left to try. The registry does not govern Event Contract pools, which is
+what the SDK's own source comment says outright and what the docs' scoping implies without ever
+stating. Grants revoked afterwards; chain state back to baseline.
+
+**The actual gap, stated for the feedback report:** the operators documentation is correct and
+complete for spot, and there is no page anywhere that tells an Event Contracts integrator that
+none of it applies to them. Every team that tried built the wrong thing first. One line in the
+Event Contracts section — "operator grants do not apply to binary pools; `placeBinaryOrderFor`
+is restricted to protocol system contracts" — would have saved each of us a day.
+
 ### What this means for Echonome
 
 The mirror engine's design — an operator EOA calling `placeBinaryOrderFor` on a follower's
