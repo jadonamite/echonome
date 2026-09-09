@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "start": "node --import tsx src/index.ts",
     "dev": "tsx watch --env-file=.env src/index.ts",
     "seed": "tsx --env-file=.env src/seeds/runSeedTraders.ts",
     "migrate": "tsx --env-file=.env src/db/migrate.ts",

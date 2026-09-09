@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: echonome-worker
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start --workspace=@echonome/worker
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SHANNON_INDEXER_URL
+        value: https://dev.smk.somnia.host/v1/graphql
+      - key: SHANNON_WS_URL
+        value: wss://api.infra.testnet.somnia.network/ws
+      - key: EC_VENUE_ID
+        value: 0x679795a0195a1b76cdebb7c51d74e058aee92919b8c3389af86ef24535e8a28c
+      - key: ECHO_ACCOUNT_FACTORY
+        value: 0xcee09039dc8020e01a12387eaa37b6a257b793d7
+      - key: OPERATOR_PRIVATE_KEY
+        sync: false
+      - key: SEED_TRADER_PRIVATE_KEYS
+        sync: false
+      - key: RUN_SEEDS
+        value: "true"

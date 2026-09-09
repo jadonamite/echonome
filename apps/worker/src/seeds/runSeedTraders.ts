@@ -63,7 +63,7 @@ async function targetMarketSymbols(exchange: SomniaMarkets): Promise<string[]> {
     .map((m: any) => m.symbol);
 }
 
-async function main() {
+export async function startSeedTraders() {
   const [makerKey, oracleFollowKey] = seedKeys();
 
   const makerExchange = buildExchange(makerKey);
@@ -160,7 +160,9 @@ async function main() {
   }, TICK_MS);
 }
 
-main().catch((err) => {
-  log.error("fatal", { err: String(err) });
-  process.exit(1);
-});
+if (process.argv[1]?.includes("runSeedTraders")) {
+  startSeedTraders().catch((err) => {
+    log.error("fatal", { err: String(err) });
+    process.exit(1);
+  });
+}

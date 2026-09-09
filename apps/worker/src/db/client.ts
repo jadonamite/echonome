@@ -15,7 +15,16 @@ function getPool(): Pool {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set — see .env.example");
   }
-  _pool = new Pool({ connectionString });
+  _pool = new Pool({
+    connectionString,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+  // An idle client encountering a connection drop/reset must not crash the process
+  _pool.on("error", (err) => {
+    console.error("[db] unexpected error on idle client", err.message);
+  });
   return _pool;
 }
 
