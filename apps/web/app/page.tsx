@@ -213,6 +213,23 @@ function Calibration({
 }
 
 /**
+ * Where a Brier score sits relative to a coin flip, in words.
+ *
+ * 0.25 is what calling every market 50/50 scores, and lower is better. This exists because the
+ * sentence it replaces read "sits near a coin flip" as fixed copy, which was true of the trader
+ * on screen the day it was written and became false the moment the highlight selected a trader
+ * scoring 0.54. That is not near a coin flip, it is twice as bad as one. The same class of
+ * mistake as the selection bug below: a conclusion written into the copy rather than derived
+ * from the number next to it.
+ */
+function brierSentence(brier: number | null): string {
+  if (brier === null) return "It has no score yet";
+  if (brier <= 0.2) return "That is meaningfully better than calling every market a coin flip";
+  if (brier <= 0.3) return "That is close to what calling every market a coin flip would score";
+  return "That is worse than calling every market a coin flip";
+}
+
+/**
  * One of our own seed traders, on the front page.
  *
  * Every sentence is generated from live buckets, including the verdict. It was written the
@@ -243,7 +260,7 @@ function HighlightPanel({
             <span className="font-mono tabular-nums text-ink">
               {highlight.sampleCount.toLocaleString("en")}
             </span>{" "}
-            resolved calls. On its own that number sits near a coin flip and tells you almost
+            resolved calls. {brierSentence(highlight.brier)}, and on its own it tells you almost
             nothing about how to use this trader.
           </p>
 
