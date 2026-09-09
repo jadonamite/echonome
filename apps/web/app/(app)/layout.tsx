@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { WalletButton } from "@/components/wallet-button";
 import { SiteFooter } from "@/components/site/footer";
+import { LogoLockup } from "@/components/site/logo";
 
 /**
  * The chrome every signed-in surface shares. It lives in a route group rather than the
@@ -19,8 +20,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="border-b border-rule">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-4">
           <div className="flex items-baseline gap-6">
-            <Link href="/" className="text-base font-semibold tracking-tight">
-              Echonome
+            <Link href="/" aria-label="Echonome home">
+              <LogoLockup variant="white" height={24} />
             </Link>
             <nav className="flex gap-5">
               {NAV.map((item) => (

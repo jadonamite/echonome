@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { EchoMark } from "./echo-mark";
+import { LogoIcon } from "./logo";
 
 const LINKS = [
   { href: "/leaderboard", label: "Leaderboard" },
@@ -28,8 +28,8 @@ export function LandingNav() {
   return (
     <header className="relative z-20 w-full">
       <div className="mx-auto flex w-full max-w-7xl items-center gap-6 px-6 py-6 sm:px-10">
-        <Link href="/" aria-label="Echonome home" className="shrink-0 text-ink">
-          <EchoMark size={30} />
+        <Link href="/" aria-label="Echonome home" className="shrink-0">
+          <LogoIcon variant="black" height={32} priority />
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">

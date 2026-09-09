@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ECHO_ACCOUNT_FACTORY, EXPLORER_URL, NETWORK_NAME } from "@/lib/somnia";
-import { EchoMark } from "./echo-mark";
+import { LogoLockup } from "./logo";
 import { FooterConsent } from "./footer-consent";
 import { MailingList } from "./mailing-list";
 
@@ -27,10 +27,7 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-3">
           {/* Left: identity and the legal links. */}
           <div>
-            <div className="flex items-center gap-2.5 text-ink">
-              <EchoMark size={22} />
-              <span className="text-sm font-semibold tracking-tight">Echonome</span>
-            </div>
+            <LogoLockup variant="white" height={26} className="text-ink" />
             <p className={`${COLUMN_HEADING} mt-5`}>&copy;{new Date().getFullYear()} Echonome</p>
             <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
               <Link href="/terms" className={SMALL_LINK}>

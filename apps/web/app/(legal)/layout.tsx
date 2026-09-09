@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteFooter } from "@/components/site/footer";
+import { LogoLockup } from "@/components/site/logo";
 
 const PAGES = [
   { href: "/terms", label: "Terms" },
@@ -17,8 +18,8 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-rule">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-6 px-6 py-5">
-          <Link href="/" className="text-base font-semibold tracking-tight">
-            Echonome
+          <Link href="/" aria-label="Echonome home">
+            <LogoLockup variant="white" height={24} />
           </Link>
           <nav className="flex gap-5">
             {PAGES.map((page) => (
