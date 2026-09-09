@@ -4,6 +4,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { EC_VENUE_ID, isTradeableTargetMarket } from "../chain/client.js";
 import { runEcMakerTick } from "./ecMaker.js";
 import { runEcOracleFollowTick } from "./ecOracleFollow.js";
+import { runCoinflipTick, runFavouriteTick, runLongshotTick } from "./strategies.js";
+import { EXTRA_STRATEGIES, seedWallets } from "../provisionSeeds.js";
 import { createLogger } from "../logger.js";
 import { beat } from "../health/heartbeat.js";
 
@@ -75,6 +77,42 @@ async function main() {
 
   const makerAddress = privateKeyToAccount(makerKey).address;
 
+  // The extra strategies, each on its own wallet so their records are separable on chain.
+  // Missing wallets are skipped rather than fatal: the two original strategies are the core
+  // demo, and `npm run seeds:provision` is what adds the rest.
+  const wallets = seedWallets();
+  const runners: Record<string, (ex: SomniaMarkets, symbols: string[]) => Promise<void>> = {
+    "ec-coinflip": runCoinflipTick,
+    "ec-longshot": runLongshotTick,
+    "ec-favourite": runFavouriteTick,
+  };
+  const extraStrategies: [string, (symbols: string[]) => Promise<void>][] = [];
+  for (const name of EXTRA_STRATEGIES) {
+    const key = wallets[name];
+    if (!key) {
+      log.warn("strategy has no wallet, not running it", { strategy: name });
+      continue;
+    }
+    const ex = buildExchange(key);
+    // Each strategy trades from its own wallet, so it needs its own SomniaMarkets instance —
+    // and the SDK's market registry is per-instance state, not global. Passing the maker's
+    // symbol list to an instance that has never loaded markets throws `unknown symbol … call
+    // loadMarkets() first` on every tick, which is contained by the try/catch below and so
+    // costs nothing visible except three bots that never place a single order.
+    //
+    // The symbol list still comes from one place (the maker's), because the whole point of
+    // running these side by side is that they face the same markets. This load only teaches
+    // this instance what those symbols mean.
+    extraStrategies.push([
+      name,
+      async (symbols) => {
+        await ex.loadMarkets(true);
+        await runners[name](ex, symbols);
+      },
+    ]);
+    log.info("strategy ready", { strategy: name, wallet: privateKeyToAccount(key).address });
+  }
+
   const tick = async () => {
     let symbols: string[] = [];
 
@@ -100,6 +138,17 @@ async function main() {
       await runEcOracleFollowTick(oracleFollowExchange, oracleFollowSymbols);
     } catch (err) {
       log.warn("ec-oracle-follow tick skipped", { reason: String(err).slice(0, 200) });
+    }
+
+    // The wider field. Each runs independently and its failure is contained: one strategy
+    // erroring must never silence the others, because the entire value of running several is
+    // that they can be compared against each other over the same markets.
+    for (const [name, run] of extraStrategies) {
+      try {
+        await run(symbols);
+      } catch (err) {
+        log.warn(`${name} tick skipped`, { reason: String(err).slice(0, 200) });
+      }
     }
 
     await beat("seeds", { targets: symbols });

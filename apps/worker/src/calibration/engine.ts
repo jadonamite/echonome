@@ -115,6 +115,72 @@ export function reliabilityBuckets(decisions: ResolvedDecision[]): ReliabilityBu
     }));
 }
 
+export interface EdgeScore {
+  /** Mean profit per unit staked. Positive means they beat the prices they paid. */
+  edge: number;
+  /** The conservative end of a 95% interval — what we are confident they actually have. */
+  edgeLower: number;
+  standardError: number;
+  sampleCount: number;
+}
+
+/**
+ * Edge: how much better a trader did than the price they paid.
+ *
+ * THIS IS THE METRIC THAT SHOULD RANK A COPY-TRADING LEADERBOARD, and the reason is worth
+ * stating precisely, because a Brier score is the intuitive choice and it is the wrong one.
+ *
+ * A Brier score rewards a price that turns out to be ACCURATE. A trader gets paid for a price
+ * that turns out to be WRONG IN THEIR FAVOUR. Those are opposite goals. Buy "Up" at 30c and
+ * watch it happen: you made 70c, and Brier marks you down hard for "saying 30% about something
+ * that occurred". Rank on Brier and you systematically rank against the traders most worth
+ * copying.
+ *
+ * Edge has no such conflict, and in a binary market it is not a heuristic — it is exactly the
+ * expected return per unit staked. You pay `c` for a token worth 1 if you are right and 0 if
+ * not, so your profit per unit is `outcome - c`. Averaged over every resolved call, that is
+ * this number. +0.05 means five cents of profit per dollar staked, on average.
+ *
+ * Ranking uses `edgeLower`, not `edge`. Twenty calls that happened to go well can show a huge
+ * edge that is pure noise; the standard error of a mean is what separates a real signal from a
+ * lucky streak, and ranking on the conservative end of the interval means a trader climbs by
+ * accumulating evidence rather than by getting a good run. A trader with 900 calls and +4c beats
+ * one with 25 calls and +12c, which is the correct answer.
+ */
+export function edgeScore(decisions: ResolvedDecision[]): EdgeScore {
+  const n = decisions.length;
+  if (n === 0) return { edge: NaN, edgeLower: NaN, standardError: NaN, sampleCount: 0 };
+
+  const perTrade = decisions.map((d) => {
+    const pricePaid = confidenceInOwnCall(Number(d.implied_probability), d.side);
+    const wasRight = d.side === d.settled_outcome ? 1 : 0;
+    return wasRight - pricePaid;
+  });
+
+  const edge = perTrade.reduce((a, b) => a + b, 0) / n;
+
+  // n = 1 has no dispersion to measure, so its interval is undefined rather than zero —
+  // claiming certainty from one observation is the opposite of what this guard is for.
+  if (n === 1) return { edge, edgeLower: NaN, standardError: NaN, sampleCount: 1 };
+
+  const sampleVariance = perTrade.reduce((acc, x) => acc + (x - edge) ** 2, 0) / (n - 1);
+
+  // A variance FLOOR, and it is not a fudge. The sample variance of a run where every outcome
+  // agreed is zero, which would claim perfect certainty from a streak — exactly the case this
+  // interval exists to be sceptical about. But the outcome term is a coin flip, not a constant:
+  // its true variance is p(1-p) and can only be zero if p is exactly 0 or 1, which no finite
+  // sample can establish. So estimate p with Agresti-Coull smoothing (+2 successes, +4 trials),
+  // which never returns 0 or 1, and never let the variance fall below what that implies.
+  const hits = decisions.filter((d) => d.side === d.settled_outcome).length;
+  const smoothedHitRate = (hits + 2) / (n + 4);
+  const bernoulliVariance = smoothedHitRate * (1 - smoothedHitRate);
+
+  const variance = Math.max(sampleVariance, bernoulliVariance);
+  const standardError = Math.sqrt(variance / n);
+
+  return { edge, edgeLower: edge - 1.96 * standardError, standardError, sampleCount: n };
+}
+
 export async function recomputeCalibration(traderId: string): Promise<void> {
   const resolved = await query<ResolvedDecision>(
     `SELECT implied_probability, side, settled_outcome
@@ -125,17 +191,27 @@ export async function recomputeCalibration(traderId: string): Promise<void> {
 
   const score = brierScore(resolved);
   const buckets = reliabilityBuckets(resolved);
+  const edge = edgeScore(resolved);
   const sampleCount = resolved.length;
 
   await queryOne(
-    `INSERT INTO calibration_score (trader_id, brier_score, reliability, sample_count, computed_at)
-     VALUES ($1, $2, $3, $4, now())
+    `INSERT INTO calibration_score (trader_id, brier_score, reliability, sample_count, edge, edge_lower, computed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())
      ON CONFLICT (trader_id) DO UPDATE
        SET brier_score = EXCLUDED.brier_score,
            reliability = EXCLUDED.reliability,
            sample_count = EXCLUDED.sample_count,
+           edge = EXCLUDED.edge,
+           edge_lower = EXCLUDED.edge_lower,
            computed_at = now()`,
-    [traderId, Number.isNaN(score) ? null : score, JSON.stringify(buckets), sampleCount]
+    [
+      traderId,
+      Number.isNaN(score) ? null : score,
+      JSON.stringify(buckets),
+      sampleCount,
+      Number.isNaN(edge.edge) ? null : edge.edge,
+      Number.isNaN(edge.edgeLower) ? null : edge.edgeLower,
+    ]
   );
 
   log.info("recomputed", {
@@ -144,5 +220,7 @@ export async function recomputeCalibration(traderId: string): Promise<void> {
     sampleCount,
     ranked: sampleCount >= MIN_CALIBRATION_SAMPLE,
     buckets: buckets.length,
+    edge: Number.isNaN(edge.edge) ? null : Number(edge.edge.toFixed(4)),
+    edgeLower: Number.isNaN(edge.edgeLower) ? null : Number(edge.edgeLower.toFixed(4)),
   });
 }

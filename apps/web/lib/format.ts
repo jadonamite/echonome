@@ -46,3 +46,24 @@ export function timeAgo(iso: string, now = Date.now()): string {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
 }
+
+/** Edge as cents per dollar staked — the unit a follower actually feels. */
+export function formatEdge(edge: number | null): string {
+  if (edge === null) return "—";
+  const cents = edge * 100;
+  return `${cents >= 0 ? "+" : ""}${cents.toFixed(1)}c`;
+}
+
+/**
+ * What an edge means, in words. The bands are wide because edge is noisy and a confident label
+ * on a thin sample is worse than no label — the ranking already uses the conservative end of
+ * the interval, and this reads the same way.
+ */
+export function edgeVerdict(edge: number | null, edgeLower: number | null): string {
+  if (edge === null) return "No resolved calls yet";
+  if (edgeLower !== null && edgeLower > 0.03) return "Reliably beats the prices they pay";
+  if (edgeLower !== null && edgeLower > 0) return "Beats the prices they pay";
+  if (edge > 0.02) return "Ahead, but not yet beyond doubt";
+  if (edge > -0.02) return "Roughly break-even against the market";
+  return "Loses to the prices they pay";
+}

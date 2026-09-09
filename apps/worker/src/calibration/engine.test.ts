@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brierScore, bucketFor, confidenceInOwnCall, reliabilityBuckets } from "./engine.js";
+import { brierScore, bucketFor, confidenceInOwnCall, edgeScore, reliabilityBuckets } from "./engine.js";
 
 /**
  * Known inputs -> known Brier scores. brierScore = mean((P(up) - outcomeUp)^2).
@@ -140,5 +140,96 @@ describe("reliabilityBuckets", () => {
 
   it("returns nothing for an empty history", () => {
     expect(reliabilityBuckets([])).toEqual([]);
+  });
+});
+
+/**
+ * Edge — the metric that should rank a copy-trading leaderboard.
+ *
+ * The case these tests exist to pin down: a Brier score and a trader's profit pull in opposite
+ * directions. Buying at 30c and being right is a 0.49 squared error (terrible Brier) and a 70c
+ * profit (excellent trade). Any leaderboard sorted on Brier therefore sorts against the people
+ * most worth copying, which is the exact opposite of the product's job.
+ */
+describe("edgeScore", () => {
+  const d = (p: string, side: "up" | "down", outcome: "up" | "down") => ({
+    implied_probability: p,
+    side,
+    settled_outcome: outcome,
+  });
+
+  it("measures profit per unit staked, which is what a follower actually receives", () => {
+    // Paid 0.30 for a token that paid out 1. Profit 0.70 per unit staked.
+    expect(edgeScore([d("0.3", "up", "up")]).edge).toBeCloseTo(0.7, 9);
+    // Paid 0.30 for a token that paid nothing. Lost the 0.30.
+    expect(edgeScore([d("0.3", "up", "down")]).edge).toBeCloseTo(-0.3, 9);
+  });
+
+  it("prices a down call at the cost of the NO token, not the YES price", () => {
+    // Market prices up at 0.80, so NO costs 0.20. They bought down and were right.
+    expect(edgeScore([d("0.8", "down", "down")]).edge).toBeCloseTo(0.8, 9);
+  });
+
+  it("scores a fairly priced trader at zero over the long run", () => {
+    // Seven of ten calls right, each taken at 0.70 — exactly what the price said.
+    const fair = [
+      ...Array(7).fill(d("0.7", "up", "up")),
+      ...Array(3).fill(d("0.7", "up", "down")),
+    ];
+    expect(edgeScore(fair).edge).toBeCloseTo(0, 9);
+  });
+
+  it("ranks the profitable trader ABOVE the accurate one — the whole point", () => {
+    // The accurate one: says 70%, right 70% of the time. Perfect calibration, zero profit.
+    const accurate = [...Array(7).fill(d("0.7", "up", "up")), ...Array(3).fill(d("0.7", "up", "down"))];
+    // The profitable one: buys at 0.30 and is right half the time. Badly "miscalibrated",
+    // and makes 20c per dollar staked.
+    const profitable = [...Array(5).fill(d("0.3", "up", "up")), ...Array(5).fill(d("0.3", "up", "down"))];
+
+    expect(edgeScore(profitable).edge).toBeGreaterThan(edgeScore(accurate).edge);
+    // And Brier says the opposite, which is precisely why it must not rank this leaderboard.
+    expect(brierScore(profitable)).toBeGreaterThan(brierScore(accurate));
+  });
+
+  it("does not let a good run on a thin sample outrank accumulated evidence", () => {
+    // 20 calls taken at 0.40, right 11 times: an apparent +15c edge, on almost nothing.
+    const thin = [
+      ...Array(11).fill(d("0.4", "up", "up")),
+      ...Array(9).fill(d("0.4", "up", "down")),
+    ];
+    // 400 calls taken at 0.50, right 240 times: a smaller +10c edge, thoroughly evidenced.
+    const proven = [
+      ...Array(240).fill(d("0.5", "up", "up")),
+      ...Array(160).fill(d("0.5", "up", "down")),
+    ];
+
+    // On raw edge the thin sample looks better.
+    expect(edgeScore(thin).edge).toBeGreaterThan(edgeScore(proven).edge);
+    // Ranking uses the conservative end, and there the evidence wins — which is the answer a
+    // follower deciding where to put money actually wants.
+    expect(edgeScore(proven).edgeLower).toBeGreaterThan(edgeScore(thin).edgeLower);
+    expect(edgeScore(proven).edgeLower).toBeGreaterThan(0);
+    expect(edgeScore(thin).edgeLower).toBeLessThan(0);
+  });
+
+  it("never claims certainty from a run where every outcome agreed", () => {
+    // Twenty straight wins has zero SAMPLE variance, which would report a zero-width interval.
+    // The outcome is a coin flip, though, and no finite run proves a coin never lands tails.
+    const streak = Array(20).fill(d("0.4", "up", "up"));
+    const scored = edgeScore(streak);
+    expect(scored.edge).toBeCloseTo(0.6, 9);
+    expect(scored.standardError).toBeGreaterThan(0);
+    expect(scored.edgeLower).toBeLessThan(scored.edge);
+  });
+
+  it("refuses to claim an interval from a single observation", () => {
+    const one = edgeScore([d("0.3", "up", "up")]);
+    expect(one.edge).toBeCloseTo(0.7, 9);
+    expect(one.edgeLower).toBeNaN();
+  });
+
+  it("returns NaN for an empty history rather than a flattering zero", () => {
+    expect(edgeScore([]).edge).toBeNaN();
+    expect(edgeScore([]).sampleCount).toBe(0);
   });
 });

@@ -12,7 +12,8 @@
     "verify:operator-gate": "tsx --env-file=.env src/testnetVerifyOperatorGate.ts",
     "health": "tsx --env-file=.env src/healthCli.ts",
     "recompute": "tsx --env-file=.env src/recomputeAll.ts",
-    "demo:follower": "tsx --env-file=.env src/setupDemoFollower.ts"
+    "demo:follower": "tsx --env-file=.env src/setupDemoFollower.ts",
+    "seeds:provision": "tsx --env-file=.env src/provisionSeeds.ts"
   },
   "dependencies": {
     "@echonome/shared": "*",
