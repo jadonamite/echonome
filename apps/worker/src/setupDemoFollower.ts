@@ -18,6 +18,8 @@ import { SomniaMarkets, SOMNIA_TESTNET_ADDRESSES } from "@somnia-chain/markets-s
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { createReadOnlyExchange, isTradeableTargetMarket } from "./chain/client.js";
 import { echoAccountAbi, echoAccountFactoryAbi, echoAccountFactoryAddress } from "./chain/echoAccount.js";
+import { seriesIdFor, venueContracts } from "./chain/series.js";
+import { EC_VENUE_ID } from "./chain/client.js";
 import { query, queryOne, end } from "./db/client.js";
 
 const KEY_FILE = new URL("../.demo-follower.key", import.meta.url).pathname;
@@ -113,12 +115,58 @@ console.log("configuring the account (executor, expiry, caps, pool allowlist, ap
 await confirm(await followerWallet.writeContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "setExecutor", args: [operator.address, expiry], gas: GAS }), "setExecutor");
 await confirm(await followerWallet.writeContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "setCaps", args: [50_000_000n, 300_000_000n], gas: GAS }), "setCaps");
 
+// The one-time authorisation that replaced re-approving a pool every hour.
+//
+// The follower names the venue's own contracts as the authority on what a real market is, then
+// approves a SERIES — "BTC, hourly on this venue" — rather than the address of the market that
+// happens to be open right now. The venue's factory moves that series onto the next window by
+// itself, so this signature keeps authorising the right market for as long as the follower
+// leaves it in place, and authorises nothing else.
+//
+// What this replaced: allowlisting the pool addresses that existed at setup time. Pool
+// addresses are one-per-window on this venue (14 live markets, 14 distinct pools — measured,
+// after a code comment claimed the opposite), so that approval was correct for under an hour.
+// At the first rollover, 231 consecutive echoes failed `PoolNotAllowed` and copy-trading was
+// silently dead until someone re-signed.
+const venue = venueContracts();
+console.log(`\nauthorising the venue once, instead of every hour…`);
+await confirm(
+  await followerWallet.writeContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "setVenue", args: [venue.module, venue.creator, EC_VENUE_ID as `0x${string}`], gas: GAS }),
+  "setVenue"
+);
+
+const wantedSeries = new Set<number>();
+for (const m of markets) {
+  const seriesId = await seriesIdFor(String(m.info.asset), String(m.info.interval));
+  if (seriesId === null) {
+    console.log(`  ${m.info.asset} ${m.info.interval}: no registered series, skipping`);
+    continue;
+  }
+  wantedSeries.add(seriesId);
+}
+for (const seriesId of wantedSeries) {
+  const already = (await pub.readContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "allowedSeries", args: [seriesId] })) as boolean;
+  if (!already) {
+    await confirm(await followerWallet.writeContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "setAllowedSeries", args: [seriesId, true], gas: GAS }), `allow series ${seriesId}`);
+  }
+}
+
+// An ERC-20 allowance is per-spender, and a pool address is per-window — so approving a series
+// alone would have left the follower signing an `approveToken` every hour anyway, moving the
+// problem rather than solving it. This permission lets the executor grant that allowance
+// itself, but only ever to the pool of a market the venue vouches for in a series the follower
+// approved, only for that market's own collateral token, and only up to the lifetime budget
+// they already set. It is off by default; this is the follower switching it on.
+await confirm(
+  await followerWallet.writeContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "setExecutorMayApprove", args: [true], gas: GAS }),
+  "setExecutorMayApprove"
+);
+
+// The pools open right now, approved here so the demo can trade immediately. Every LATER window
+// is handled by the executor through the permission just granted — this loop is a head start,
+// not a recurring obligation.
 for (const m of markets) {
   const pool = m.info.poolAddress as Address;
-  const already = (await pub.readContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "allowedPool", args: [pool] })) as boolean;
-  if (!already) {
-    await confirm(await followerWallet.writeContract({ address: ACCOUNT, abi: echoAccountAbi, functionName: "setAllowedPool", args: [pool, true], gas: GAS }), `allow ${m.info.asset} pool`);
-  }
   // The pool PULLS collateral at fill time, so the account must approve it. Without this the
   // order reaches matching and dies at ERC20InsufficientAllowance — which is exactly what the
   // custody verification observed, and is the last thing standing between a valid order and a
@@ -154,6 +202,7 @@ console.log(`their account     ${ACCOUNT}`);
 console.log(`account holds     ${formatUnits(finalUsdc, 6)} tUSDC`);
 console.log(`executor active   ${status[0]}   budget left ${formatUnits(status[4], 6)}`);
 console.log(`copying           ${leader.label} at 25% of their size`);
-console.log(`\nThe next fill by ${leader.label} on an allowlisted pool should echo into that account.`);
+console.log(`\nThe next fill by ${leader.label} in an approved series should echo into that account —`);
+console.log(`including in every future hourly window, with no further signature from the follower.`);
 await end();
 process.exit(0);

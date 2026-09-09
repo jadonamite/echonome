@@ -1,11 +1,17 @@
-import { createWalletClient, createPublicClient, http, type Address } from "viem";
+import { createWalletClient, createPublicClient, http, parseAbi, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { ORDER_KIND } from "@somnia-chain/markets-sdk";
 import { echoAccountAbi } from "../chain/echoAccount.js";
+import { seriesIdFor } from "../chain/series.js";
 import { createReadOnlyExchange } from "../chain/client.js";
 import { query, queryOne } from "../db/client.js";
 import { createLogger } from "../logger.js";
+
+/** Just enough ERC-20 to ask whether this window's pool can already pull collateral. */
+const erc20AllowanceAbi = parseAbi([
+  "function allowance(address owner, address spender) view returns (uint256)",
+]);
 
 const log = createLogger("mirror");
 
@@ -142,6 +148,30 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
   const poolAddress = market.info.poolAddress as Address;
   const kind = decision.side === "up" ? ORDER_KIND.BUY_YES : ORDER_KIND.BUY_NO;
   const expireTimestampNs = BigInt(market.info.expiry) * 1_000_000_000n;
+  const marketId = decision.market_id as `0x${string}`;
+  const collateralToken = market.info.collateral as Address;
+  const oneShareRaw = 10n ** BigInt(Number(market.info.baseDecimals ?? 6));
+
+  /**
+   * Which rolling series this market belongs to — "BTC, hourly" as a number the account can
+   * check. A follower approves the series once and every future window in it is authorised
+   * automatically, which is what replaced re-approving a pool address every hour.
+   *
+   * A market outside every registered series is not echoed at all. That is a refusal to guess:
+   * the account would reject the order anyway, and sending it would burn gas to be told so.
+   */
+  const seriesId = await seriesIdFor(String(market.info.asset), String(market.info.interval));
+  if (seriesId === null) {
+    log.warn("market belongs to no registered venue series, not echoed", {
+      marketId,
+      asset: market.info.asset,
+      interval: market.info.interval,
+    });
+    for (const link of copyLinks) {
+      await recordFailure(link.id, decision, 0, "market_outside_venue_series");
+    }
+    return;
+  }
 
   /**
    * The price this echo crosses at, tick-aligned.
@@ -264,12 +294,28 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
       continue;
     }
 
-    const allowed = (await publicClient
-      .readContract({ address: echoAccount, abi: echoAccountAbi, functionName: "allowedPool", args: [poolAddress] })
-      .catch(() => false)) as boolean;
-    if (!allowed) {
-      await recordFailure(link.id, decision, Number(quantity), "pool_not_allowlisted");
-      log.info("account has not allowlisted this pool, skipped", { account: echoAccount, pool: poolAddress });
+    // Ask the account itself whether it would authorise this market, and take its named revert
+    // as the reason. This replaces reading `allowedPool` directly, which was both wrong and
+    // uninformative: wrong because a follower now approves a SERIES rather than the hour's
+    // pool address, and uninformative because a bare false could not distinguish "you approved
+    // a different asset" from "this window has closed".
+    try {
+      await publicClient.readContract({
+        address: echoAccount,
+        abi: echoAccountAbi,
+        functionName: "previewAuthorisation",
+        args: [marketId, seriesId, poolAddress],
+      });
+    } catch (err) {
+      const reason = decodeReason(err);
+      await recordFailure(link.id, decision, Number(quantity), reason);
+      log.info("account would not authorise this market, skipped", {
+        account: echoAccount,
+        marketId,
+        seriesId,
+        pool: poolAddress,
+        reason,
+      });
       continue;
     }
 
@@ -282,7 +328,76 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
       continue;
     }
 
-    const orderArgs = [poolAddress, kind, price, quantity, expireTimestampNs, ORDER_TYPE_IOC, 0, 0n] as const;
+    // A pool PULLS collateral at fill time, so it needs an allowance from the account — and a
+    // pool address is per-window, so a freshly rolled market always starts with none. The
+    // follower granted the executor permission to set exactly this allowance, on exactly this
+    // kind of market, precisely so that a rollover does not require them to sign again.
+    //
+    // Skipped silently when the allowance already covers the order, which it does for every
+    // echo after the first one in a window.
+    try {
+      const allowance = (await publicClient.readContract({
+        address: collateralToken,
+        abi: erc20AllowanceAbi,
+        functionName: "allowance",
+        args: [echoAccount, poolAddress],
+      })) as bigint;
+
+      if (allowance < (price * quantity) / oneShareRaw) {
+        // Simulate first, for the same reason the order below does: a mined-and-reverted
+        // transaction's receipt carries no reason, so sending blind turns a precise refusal
+        // into "approval reverted (0x…)". Observed exactly that at the 12:00 rollover, where
+        // the honest answer was that the venue had not yet pointed the series at the new
+        // window — a two-second condition that resolves itself, and unreadable without this.
+        await publicClient.simulateContract({
+          account,
+          address: echoAccount,
+          abi: echoAccountAbi,
+          functionName: "approveMarketCollateral",
+          args: [marketId, seriesId],
+        });
+
+        // Estimate rather than guess. A hand-picked 500,000 simulated fine and then reverted on
+        // chain 21 times, using 485,680 of it — not the clean gasUsed == limit that says
+        // "out of gas", but the 63/64 signature of an INNER call running out while the outer
+        // frame keeps its reserve. This account's approval reads a 14-field market record and a
+        // series row from two other contracts before it touches the token, and that costs more
+        // on this chain than it looks like it should. Doubling the estimate leaves room for the
+        // venue's own storage being cold.
+        const approvalGas = await publicClient.estimateContractGas({
+          account,
+          address: echoAccount,
+          abi: echoAccountAbi,
+          functionName: "approveMarketCollateral",
+          args: [marketId, seriesId],
+        });
+
+        const receipt = await sendSerially(async () => {
+          const hash = await walletClient.writeContract({
+            address: echoAccount,
+            abi: echoAccountAbi,
+            functionName: "approveMarketCollateral",
+            args: [marketId, seriesId],
+            gas: approvalGas * 2n,
+          });
+          return publicClient.waitForTransactionReceipt({ hash });
+        });
+        if (receipt.status !== "success") throw new Error(`approval reverted (${receipt.transactionHash})`);
+        log.info("granted this window's pool its collateral allowance", {
+          account: echoAccount,
+          pool: poolAddress,
+          marketId,
+          seriesId,
+        });
+      }
+    } catch (err) {
+      const reason = decodeReason(err);
+      await recordFailure(link.id, decision, Number(quantity), reason);
+      log.warn("could not grant the pool its collateral allowance", { account: echoAccount, pool: poolAddress, reason });
+      continue;
+    }
+
+    const orderArgs = [marketId, seriesId, poolAddress, kind, price, quantity, expireTimestampNs, ORDER_TYPE_IOC, 0, 0n] as const;
 
     // Simulate first. A reverting order costs the same gas whether we discover it before or
     // after sending, and simulating gives the DECODED reason — the difference between telling a
@@ -305,16 +420,17 @@ export async function mirrorDecision(decisionId: string): Promise<void> {
     }
 
     try {
-      const hash = await sendSerially(() =>
-        walletClient.writeContract({
+      const receipt = await sendSerially(async () => {
+        const hash = await walletClient.writeContract({
           address: echoAccount,
           abi: echoAccountAbi,
           functionName: "placeOrder",
           args: orderArgs,
           gas: 3_000_000n,
-        })
-      );
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        });
+        return publicClient.waitForTransactionReceipt({ hash });
+      });
+      const hash = receipt.transactionHash;
       if (receipt.status !== "success") {
         // BUG FOUND ON THE FIRST REAL ECHO: this branch did not exist. The engine waited for
         // the receipt and never looked at its status, so a transaction that mined and REVERTED

@@ -382,6 +382,100 @@ Phase 8 monitoring must alert on **absence** — no new decisions in N minutes, 
 market that is live and has volume — because "up, no errors, writing nothing" is what all
 three of these looked like from outside.
 
+
+## 2026-09-09 — A pool address is ONE market and ONE window, and the fix is a series
+
+**This is the single most useful thing in this file for anyone building delegated trading on
+Event Contracts, and it is the reason Echonome's copy-trading worked for 47 minutes and then
+stopped without an error.**
+
+A follower's EchoAccount scopes what our executor may trade by allowlisting pool addresses. The
+contract's own comment claimed that was a coarse filter because "the same pool is re-bound to a
+new market when the cadence window rolls". **That is false.** Measured directly:
+
+```
+14 live binary markets on this venue -> 14 distinct pool addresses, none shared
+```
+
+A pool address is one market, in one window. So allowlisting the pools that exist when a
+follower signs up authorises them for **under an hour**. At the first rollover, every echo
+failed `PoolNotAllowed` — 231 consecutive refusals — and copy-trading was silently dead until
+someone re-signed. Nothing errored. The system was working exactly as written.
+
+The venue cannot fix this with a wider allowlist, because the real risk the allowlist stops is
+an executor pointing an account at a pool the executor deployed itself. What was needed was a
+way to say *"any market of this kind, including ones that do not exist yet"*.
+
+### There is one, and it is not documented anywhere we could find
+
+`MarketCreator.seriesById(uint32)` is a registered, on-chain table of the venue's rolling
+series — asset and interval, permanently:
+
+| seriesId | asset | intervalSec |
+|---|---|---|
+| 1 / 2 | BTC / ETH | 900 |
+| 3 / 4 | BTC / ETH | 3600 |
+| 5 / 6 | BTC / ETH | 14400 |
+| 7 / 8 | BTC / ETH | 86400 |
+| 9 / 10 / 11 | BTC / BTC / ETH | 60 / 300 / 300 |
+
+and `referenceQidBySeries(uint32)` returns the oracle question of **that series' current
+market**, moving by itself every time the window rolls. Together with
+`BinaryMarketsModule.markets(bytes32)` — which binds a marketId to its venue, creator, pool,
+trading window and question — that is everything an on-chain policy needs to express "any
+hourly BTC market from this venue, forever".
+
+A follower now approves **series 3** once. Every future hourly BTC market is authorised
+automatically; nothing else ever is. `BinaryMarketsModule.poolCreator(address)` is the cheap
+companion check — non-zero only for a pool the module itself minted, so an invented pool is
+rejected without any market lookup at all.
+
+### The trap inside the fix: one oracle question serves several cadences
+
+The obvious implementation — "the market whose question id matches the series' reference" — is
+**wrong, and wrong in a way that silently widens what the follower approved.** A question is
+keyed by asset and settlement instant, and every cadence that lands on that instant binds to
+the same one:
+
+```
+BTC-0-09SEP26-1100-7F0F   1h    qid 52723   window 3600s
+BTC-0-09SEP26-1100-7F95   15m   qid 52723   window  900s
+BTC-0-09SEP26-1100-7FB3   5m    qid 52723   window  300s
+```
+
+Three markets, three cadences, one question id. Matching on the question alone means approving
+"BTC hourly" also approves "BTC every five minutes" — same asset, a cadence the follower never
+chose, and it looks correct while doing it. `referenceQidBySeries` for series 1 and series 3
+were identical at the time of writing for exactly this reason.
+
+`expiry - tradingStart` is the discriminator: it equals the series' `intervalSec` exactly, on
+every market observed. Both checks together are what actually pin a series.
+
+**For DreamDEX:** a `seriesOf(bytes32 marketId)` read on the module would make all of this a
+single call, and would remove a footgun that any delegated-trading integration will otherwise
+walk into. There is currently no reverse lookup from a market to its series at all
+(`seriesByPendingQid` exists only on MarketCreatorV2 and reverts on the deployed v1 creator).
+
+## 2026-09-09 — An inner out-of-gas does NOT show gasUsed == gasLimit
+
+Already in this file: "out-of-gas looks exactly like a logic revert; compare gasUsed against
+your limit". That test is necessary and **not sufficient**, and the difference cost another
+21 failed transactions.
+
+The account's `approveMarketCollateral` reads a 14-field market record and a series row from
+two other contracts before touching the token. Sent with a hand-picked 500,000 gas, it
+simulated fine and reverted on chain every time, using **485,680** — not equal to the limit, so
+the existing check said "logic revert" and pointed at the contract.
+
+It was gas. EIP-150 gives an inner call only 63/64 of the remaining gas and the outer frame
+keeps the rest, so when the inner call is the one that starves, the transaction reverts having
+burned ~97% of the limit rather than 100%. The signature to look for is not equality — it is
+gasUsed sitting just under the limit with a suspiciously round shortfall.
+
+`estimateContractGas` and double it. Guessing a gas limit on this chain has now cost time three
+separate ways.
+
+
 ---
 
 _Add to this file as things come up — don't wait until submission to remember what was hard._

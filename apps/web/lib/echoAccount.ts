@@ -13,6 +13,11 @@ export const echoAccountAbi = parseAbi([
   "function executorExpiry() view returns (uint64)",
   "function paused() view returns (bool)",
   "function allowedPool(address) view returns (bool)",
+  "function allowedSeries(uint32) view returns (bool)",
+  "function venueModule() view returns (address)",
+  "function venueCreator() view returns (address)",
+  "function venueId() view returns (bytes32)",
+  "function executorMayApprove() view returns (bool)",
   "function maxOrderCollateral() view returns (uint256)",
   "function totalCollateralCap() view returns (uint256)",
   "function collateralCommitted() view returns (uint256)",
@@ -21,6 +26,12 @@ export const echoAccountAbi = parseAbi([
   "function revokeExecutor()",
   "function setPaused(bool paused)",
   "function setAllowedPool(address pool, bool allowed)",
+  // The one-time authorisation. `setAllowedSeries` is what a follower signs instead of
+  // re-approving a pool address every hour, and turning it off is how they stop copying an
+  // asset without touching anything else.
+  "function setVenue(address module, address creator, bytes32 venueId)",
+  "function setAllowedSeries(uint32 seriesId, bool allowed)",
+  "function setExecutorMayApprove(bool allowed)",
   "function setCaps(uint256 maxOrderCollateral, uint256 totalCollateralCap)",
   "function approveToken(address token, address spender, uint256 amount)",
   "function withdrawToken(address token, address to, uint256 amount)",

@@ -7,7 +7,9 @@ import { ReliabilityDiagram } from "@/components/reliability-diagram";
 import { CopyButton } from "./copy-button";
 import {
   brierVerdict,
+  edgeVerdict,
   formatBrier,
+  formatEdge,
   formatProbability,
   shortAddress,
   shortMarket,
@@ -58,8 +60,17 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
         <CopyButton traderId={trader.id} traderLabel={trader.label} />
       </section>
 
-      <section className="grid gap-px border border-rule bg-rule sm:grid-cols-4">
-        <Panel label="Brier score" value={formatBrier(trader.brierScore)} hint={brierVerdict(trader.brierScore)} />
+      <section className="grid gap-px border border-rule bg-rule sm:grid-cols-5">
+        <Panel
+          label="Edge"
+          value={formatEdge(trader.edge)}
+          hint={edgeVerdict(trader.edge, trader.edgeLower)}
+        />
+        <Panel
+          label="Brier score"
+          value={formatBrier(trader.brierScore)}
+          hint={brierVerdict(trader.brierScore)}
+        />
         <Panel
           label="Resolved calls"
           value={String(trader.resolvedCount)}

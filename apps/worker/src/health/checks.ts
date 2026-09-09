@@ -110,9 +110,19 @@ export const DELIBERATE_REFUSALS = [
   "follower_paused",
   "authorisation_expired",
   "budget_exhausted",
-  "pool_not_allowlisted",
   "no_account_deployed",
   "leader_size_unknown",
+  // The account's own named refusals, recorded verbatim from its revert. `PoolNotAllowed` is
+  // the legacy manual path; the rest are the series check declining, each for a reason a
+  // follower can act on. `market_outside_venue_series` is the engine declining before it asks.
+  "PoolNotAllowed",
+  "SeriesNotAllowed",
+  "MarketNotInSeries",
+  "MarketCadenceMismatch",
+  "MarketNotOpen",
+  "VenueNotConfigured",
+  "ExecutorMayNotApprove",
+  "market_outside_venue_series",
 ] as const;
 
 export function evaluateHealth(facts: HealthFacts): HealthFinding[] {

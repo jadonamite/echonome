@@ -29,6 +29,57 @@ interface IERC20Minimal {
     function balanceOf(address account) external view returns (uint256);
 }
 
+/// @notice One market as the venue's own module records it.
+/// @dev ABI-identical to the module's 14-value `markets(bytes32)` return — every field is
+///      static, so a struct and a flat tuple encode the same. Taken as a struct so decoding
+///      costs one memory pointer instead of fourteen stack slots.
+struct MarketRecord {
+    uint256 oracleQuestionId;
+    uint8 outcomeSlotCount;
+    uint8 voidPolicy;
+    address collateral;
+    uint32 originOperatorId;
+    bytes32 originVenueId;
+    address oracleAdapter;
+    address creator;
+    address market;
+    address pool;
+    uint256 yesId;
+    uint256 noId;
+    uint64 tradingStart;
+    uint64 expiry;
+}
+
+/// @notice The venue's market registry — the contract that decides what a real market is.
+interface IBinaryMarketsModule {
+    function markets(bytes32 marketId) external view returns (MarketRecord memory);
+
+    /// @dev Non-zero only for a pool the module itself minted. The cheapest possible proof
+    ///      that a pool address is not something the caller invented.
+    function poolCreator(address pool) external view returns (address creator);
+}
+
+/// @notice The venue's market factory, which publishes a rolling series per asset+interval.
+interface IMarketCreator {
+    /// @dev The oracle question of the series' CURRENT market. This is the hinge the whole
+    ///      series check turns on: it moves by itself every time the window rolls, which is
+    ///      exactly why a follower never has to sign again.
+    function referenceQidBySeries(uint32 seriesId) external view returns (uint256 qid);
+
+    /// @dev The series' registered definition. Only `intervalSec` is read here — it is what
+    ///      separates two markets that settle at the same instant on the same asset.
+    function seriesById(uint32 seriesId)
+        external
+        view
+        returns (
+            address collateral,
+            string memory asset,
+            uint64 numericDecimals,
+            uint64 intervalSec,
+            uint64 settlementWindow
+        );
+}
+
 /**
  * @title EchoAccount
  * @notice A trading account a follower owns, which Echonome's engine may trigger but can
@@ -82,13 +133,49 @@ contract EchoAccount {
     /// @notice Immediate stop for executor actions, without giving up the configuration.
     bool public paused;
 
-    /// @notice Pools the executor may trade on.
-    /// @dev A coarse filter, and honestly so. Event Contract pool addresses are a TIME-VARYING
-    ///      binding: the same pool is re-bound to a new market when the cadence window rolls,
-    ///      which we observed directly. Allowlisting a pool therefore does NOT scope the
-    ///      executor to one market — it includes that pool's future windows. The caps and the
-    ///      expiry carry the real security weight.
+    /// @notice Individual pools the executor may trade on, named by the owner.
+    /// @dev An earlier version of this comment claimed pool addresses are re-bound to the next
+    ///      market when a cadence window rolls, and that allowlisting one therefore covered its
+    ///      future windows. That is FALSE, and measuring it is what prompted the series check
+    ///      below: 14 live markets on this venue had 14 distinct pool addresses, none shared.
+    ///      A pool address is one market and one window. Naming pools by hand therefore buys a
+    ///      follower exactly one hour of copying before every order fails `PoolNotAllowed` —
+    ///      which is what happened, 231 times, at the first rollover after the demo was set up.
+    ///
+    ///      This mapping is kept as the owner's manual override. The automatic path is
+    ///      `allowedSeries`, and an order may use either.
     mapping(address => bool) public allowedPool;
+
+    // ── The venue, as the owner has vouched for it ────────────────────────────────
+    //
+    // These four values are what let a follower approve a KIND of market once instead of
+    // individual markets forever. `setVenue` names the contracts that are allowed to answer
+    // "is this a real market?", and `allowedSeries` names which of that venue's rolling
+    // series the executor may trade. Nothing here is writable by the executor.
+
+    /// @notice The venue's market registry, the only contract this account will believe about
+    ///         what a market is. Zero disables the automatic path entirely.
+    address public venueModule;
+
+    /// @notice The venue's market factory, which publishes the rolling series.
+    /// @dev Pinned by the owner rather than read from the market record, so that a market
+    ///      claiming an attacker-controlled creator can never be the thing asked whether it
+    ///      belongs to an approved series. A creator migration is a deliberate re-consent.
+    address public venueCreator;
+
+    /// @notice The venue id every tradeable market must carry.
+    bytes32 public venueId;
+
+    /// @notice Rolling series the executor may trade — e.g. "BTC, hourly" on this venue.
+    /// @dev A series id is a permanent on-chain name for an asset at a cadence; the market it
+    ///      points at changes by itself every window. That is the whole fix: the follower signs
+    ///      once, and the authorisation follows the venue's own rollover with no further
+    ///      signature and no widening of what was approved.
+    mapping(uint32 => bool) public allowedSeries;
+
+    /// @notice Whether the executor may grant collateral allowances to venue-vouched pools.
+    /// @dev Default false. See `setExecutorMayApprove` for exactly what turning it on permits.
+    bool public executorMayApprove;
 
     /// @notice Most collateral a single order may commit.
     uint256 public maxOrderCollateral;
@@ -111,6 +198,10 @@ contract EchoAccount {
     event ExecutorRevoked(address indexed formerExecutor);
     event PausedSet(bool paused);
     event PoolAllowed(address indexed pool, bool allowed);
+    event VenueSet(address indexed module, address indexed creator, bytes32 venueId);
+    event SeriesAllowed(uint32 indexed seriesId, bool allowed);
+    event ExecutorApprovalPermissionSet(bool allowed);
+    event VenuePoolApproved(address indexed pool, address indexed token, uint256 amount);
     event CapsSet(uint256 maxOrderCollateral, uint256 totalCollateralCap);
     event CommittedReset(uint256 previousCommitted);
     event OrderPlaced(address indexed pool, uint8 kind, uint256 price, uint256 quantity, uint256 collateral, uint128 orderId);
@@ -126,6 +217,16 @@ contract EchoAccount {
     error ExecutorExpired();
     error AccountPaused();
     error PoolNotAllowed(address pool);
+    error VenueNotConfigured();
+    error SeriesNotAllowed(uint32 seriesId);
+    error MarketNotFromVenue(bytes32 found, bytes32 expected);
+    error MarketNotFromCreator(address found, address expected);
+    error PoolNotInMarket(address pool, address marketsPool);
+    error MarketNotInSeries(uint32 seriesId, uint256 marketQid, uint256 seriesQid);
+    error MarketCadenceMismatch(uint32 seriesId, uint64 windowSeconds, uint64 seriesInterval);
+    error MarketNotOpen(uint64 tradingStart, uint64 expiry);
+    error PoolNotFromVenue(address pool);
+    error ExecutorMayNotApprove();
     error OrderTooLarge(uint256 collateral, uint256 cap);
     error BudgetExhausted(uint256 committed, uint256 attempted, uint256 cap);
     error ZeroAddress();
@@ -163,6 +264,8 @@ contract EchoAccount {
     /// @dev The order, the position it creates, and everything it eventually settles into
     ///      belong to this account, and only the owner can move any of it out.
     function placeOrder(
+        bytes32 marketId,
+        uint32 seriesId,
         address pool,
         uint8 kind,
         uint256 price,
@@ -172,7 +275,11 @@ contract EchoAccount {
         uint8 selfMatchingOption,
         uint64 userData
     ) external onlyActiveExecutor returns (uint128 orderId) {
-        if (!allowedPool[pool]) revert PoolNotAllowed(pool);
+        // Two ways in, and the owner authorised both. Either they named this exact pool, or
+        // they approved the series and the venue's own registry confirms this market is that
+        // series' current window. `marketId` and `seriesId` are the executor's claim about
+        // which market it is trading; every part of that claim is checked against the venue.
+        if (!allowedPool[pool]) _requireSeriesAuthorised(marketId, seriesId, pool);
 
         uint256 collateral = collateralFor(price, quantity);
         if (collateral > maxOrderCollateral) revert OrderTooLarge(collateral, maxOrderCollateral);
@@ -204,10 +311,127 @@ contract EchoAccount {
     }
 
     /// @notice Cancel an order this account placed. Freed collateral returns here.
+    /// @dev Deliberately a WEAKER check than `placeOrder`, and the asymmetry is the point.
+    ///      Placing requires the market to be the approved series' current, open window.
+    ///      Cancelling must keep working after that window has rolled — otherwise a resting
+    ///      order would become uncancellable by the executor at the exact moment it is most
+    ///      worth pulling, and the follower's collateral would sit locked until they
+    ///      intervened by hand. So cancel asks only the cheaper question: did this venue mint
+    ///      this pool? Cancelling frees collateral back into this account and can move nothing
+    ///      out of it, so there is no attack a looser check opens up.
     function cancelOrder(address pool, uint128 orderId) external onlyActiveExecutor {
-        if (!allowedPool[pool]) revert PoolNotAllowed(pool);
+        if (!allowedPool[pool]) {
+            if (venueModule == address(0) || venueCreator == address(0)) revert VenueNotConfigured();
+            if (IBinaryMarketsModule(venueModule).poolCreator(pool) != venueCreator) {
+                revert PoolNotFromVenue(pool);
+            }
+        }
         IBinaryPool(pool).cancelOrder(orderId);
         emit OrderCancelled(pool, orderId);
+    }
+
+    /**
+     * @notice Approve the collateral a venue-vouched market's pool will pull, so the first
+     *         order into a newly rolled window does not need the follower to sign anything.
+     *
+     * @dev Gated by `executorMayApprove`, and by the same series check `placeOrder` uses — so
+     *      an approval can only ever reach the pool of a market the owner already authorised
+     *      trading in. Both the token and the spender come out of the venue's own record
+     *      rather than from the caller: the executor supplies a market id, and the venue
+     *      decides what that market's collateral and pool actually are.
+     *
+     *      The amount is the owner's own lifetime budget. A pool cannot be given permission to
+     *      pull more than the follower had already agreed to put at risk in total.
+     */
+    function approveMarketCollateral(bytes32 marketId, uint32 seriesId)
+        external
+        onlyActiveExecutor
+        returns (address token, address pool)
+    {
+        if (!executorMayApprove) revert ExecutorMayNotApprove();
+
+        MarketRecord memory m = _vouchedMarket(marketId, seriesId);
+
+        token = m.collateral;
+        pool = m.pool;
+        IERC20Minimal(token).approve(pool, totalCollateralCap);
+        emit VenuePoolApproved(pool, token, totalCollateralCap);
+    }
+
+    /// @notice Revert exactly as `placeOrder` would, without placing anything.
+    /// @dev The engine calls this before spending gas on an order it cannot place, and records
+    ///      the named error as the reason. A boolean would have told it "no" without telling a
+    ///      follower which of six conditions failed, and every silent failure in this project
+    ///      has cost hours.
+    function previewAuthorisation(bytes32 marketId, uint32 seriesId, address pool) external view {
+        if (!allowedPool[pool]) _requireSeriesAuthorised(marketId, seriesId, pool);
+    }
+
+    /**
+     * @dev The series check, in the order that fails cheapest first.
+     *
+     *      What it establishes, in one sentence: this pool is the trading venue of a market
+     *      that the venue's own registry recorded, on the venue the owner named, minted by the
+     *      creator the owner pinned, currently open, and holding the oracle question that the
+     *      owner-approved series points at right now.
+     *
+     *      The last clause is what survives the hourly rollover. `referenceQidBySeries` moves
+     *      on its own when the venue rolls the series, so an approval granted once keeps
+     *      matching the new market — without ever widening to a market the owner did not mean.
+     *      An attacker cannot forge it: they would have to make the venue's own factory point
+     *      its series at their market.
+     */
+    function _requireSeriesAuthorised(bytes32 marketId, uint32 seriesId, address pool) internal view {
+        MarketRecord memory m = _vouchedMarket(marketId, seriesId);
+
+        // An unknown marketId decodes to an all-zero record, so this is also the check that
+        // rejects a market the venue has never heard of: its pool is address(0) and cannot
+        // match a real one.
+        if (m.pool != pool) revert PoolNotInMarket(pool, m.pool);
+    }
+
+    /// @dev Everything `_requireSeriesAuthorised` establishes about the MARKET, returning the
+    ///      venue's record of it. Split out because a caller that derives the pool FROM this
+    ///      record has nothing to compare it against — checking `m.pool == m.pool` would be a
+    ///      check against itself, and writing it that way would read like a real one.
+    function _vouchedMarket(bytes32 marketId, uint32 seriesId) internal view returns (MarketRecord memory m) {
+        if (!allowedSeries[seriesId]) revert SeriesNotAllowed(seriesId);
+        if (venueModule == address(0) || venueCreator == address(0)) revert VenueNotConfigured();
+
+        m = IBinaryMarketsModule(venueModule).markets(marketId);
+
+        if (m.originVenueId != venueId) revert MarketNotFromVenue(m.originVenueId, venueId);
+        if (m.creator != venueCreator) revert MarketNotFromCreator(m.creator, venueCreator);
+
+        // Trading into a window that has already expired is not a hypothetical: a seed bot on
+        // this venue quoted into a two-hours-dead market 314 times before anyone noticed. The
+        // venue records the window, so the account can simply refuse.
+        if (block.timestamp < m.tradingStart || block.timestamp >= m.expiry) {
+            revert MarketNotOpen(m.tradingStart, m.expiry);
+        }
+
+        uint256 seriesQid = IMarketCreator(venueCreator).referenceQidBySeries(seriesId);
+        if (seriesQid == 0 || m.oracleQuestionId != seriesQid) {
+            revert MarketNotInSeries(seriesId, m.oracleQuestionId, seriesQid);
+        }
+
+        // And the cadence, which the question id alone does NOT establish.
+        //
+        // Measured on this venue: the hourly, 15-minute and 5-minute BTC markets that all
+        // settle at 12:00 carry the SAME oracle question id, because a question is keyed by
+        // asset and settlement instant and every cadence landing on that instant binds to it.
+        // So a check that stopped at the question would have let an approval for "BTC hourly"
+        // authorise the 5-minute market too — the same asset, but a cadence the follower never
+        // chose, and it would have looked correct while doing it.
+        //
+        // The window's own length is unambiguous: expiry minus tradingStart is exactly the
+        // series interval, on every market observed. Subtraction is safe here because the
+        // window check above has already established expiry > tradingStart.
+        (, , , uint64 intervalSec, ) = IMarketCreator(venueCreator).seriesById(seriesId);
+        uint64 windowSeconds = m.expiry - m.tradingStart;
+        if (intervalSec == 0 || windowSeconds != intervalSec) {
+            revert MarketCadenceMismatch(seriesId, windowSeconds, intervalSec);
+        }
     }
 
     /// @notice Quote-token collateral a BUY of `quantity` at `price` commits.
@@ -247,6 +471,43 @@ contract EchoAccount {
     function setAllowedPool(address pool, bool allowed) external onlyOwner {
         allowedPool[pool] = allowed;
         emit PoolAllowed(pool, allowed);
+    }
+
+    /// @notice Name the venue this account will believe about what a market is.
+    /// @dev Setting the module to zero turns the automatic path off completely, leaving only
+    ///      pools the owner named by hand. That is the off switch, and it is the owner's.
+    function setVenue(address module, address creator, bytes32 _venueId) external onlyOwner {
+        venueModule = module;
+        venueCreator = creator;
+        venueId = _venueId;
+        emit VenueSet(module, creator, _venueId);
+    }
+
+    /// @notice Let the executor grant this account's collateral allowance to a venue pool.
+    /// @dev OFF by default, and the one permission in this contract that lets the executor
+    ///      cause tokens to move. It exists because an ERC-20 allowance is per-spender and a
+    ///      pool address is per-window: without it, approving a series once would still leave
+    ///      the follower signing an `approveToken` every hour, and the hourly problem would be
+    ///      moved rather than solved.
+    ///
+    ///      What it grants, exactly: the executor may approve the collateral token named by a
+    ///      venue-vouched market record, to that record's own pool, up to `totalCollateralCap`.
+    ///      It cannot choose the token, cannot choose the amount, cannot name a spender that is
+    ///      not the pool of a market in a series the owner approved, and still cannot transfer
+    ///      anything itself. A follower who would rather approve pools by hand leaves this off
+    ///      and nothing else changes.
+    function setExecutorMayApprove(bool allowed) external onlyOwner {
+        executorMayApprove = allowed;
+        emit ExecutorApprovalPermissionSet(allowed);
+    }
+
+    /// @notice Approve or withdraw one rolling series — an asset at a cadence.
+    /// @dev The single signature that replaces re-approving a pool every hour, and the single
+    ///      switch that stops it. Withdrawing a series takes effect on the executor's very next
+    ///      order; nothing is grandfathered.
+    function setAllowedSeries(uint32 seriesId, bool allowed) external onlyOwner {
+        allowedSeries[seriesId] = allowed;
+        emit SeriesAllowed(seriesId, allowed);
     }
 
     function setCaps(uint256 _maxOrderCollateral, uint256 _totalCollateralCap) external onlyOwner {

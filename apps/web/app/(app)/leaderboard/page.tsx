@@ -4,7 +4,9 @@ import { getLeaderboard, getRecentTraces, type LeaderboardEntry } from "@/lib/qu
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
 import {
   brierVerdict,
+  edgeVerdict,
   formatBrier,
+  formatEdge,
   shortAddress,
   timeAgo,
 } from "@/lib/format";
@@ -21,13 +23,11 @@ export default async function LeaderboardPage() {
   return (
     <div className="space-y-10">
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Ranked by calibration</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Ranked by edge</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-ink-2">
-          Not by profit. A trader here is scored on whether their confidence matched
-          reality — a Brier score, where lower is better and{" "}
-          <span className="font-mono tnum text-ink">0.2500</span> is exactly what you would
-          get by calling everything a coin flip. Profit can be luck for a long time.
-          Calibration cannot.
+          How much better a trader did than the prices they paid, in cents per dollar
+          staked. Sorting uses the conservative end of a 95% confidence interval, so
+          traders climb by accumulating evidence rather than a lucky run.
         </p>
       </section>
 
@@ -123,7 +123,16 @@ function TraderRow({
           </div>
 
           <div className="flex shrink-0 items-start gap-8">
-            <Stat label="Brier" value={formatBrier(entry.brierScore)} hint={brierVerdict(entry.brierScore)} />
+            <Stat
+              label="Edge"
+              value={formatEdge(entry.edge)}
+              hint={edgeVerdict(entry.edge, entry.edgeLower)}
+            />
+            <Stat
+              label="Brier"
+              value={formatBrier(entry.brierScore)}
+              hint="accuracy, not profit"
+            />
             <Stat
               label="Resolved"
               value={String(entry.resolvedCount)}
