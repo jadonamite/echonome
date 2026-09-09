@@ -82,20 +82,18 @@ async function settleOnce() {
     if (pendingDecisions.length === 0) continue;
 
     const resolvedAt = info.resolvedAtTimestamp ? Number(info.resolvedAtTimestamp) : Math.floor(Date.now() / 1000);
-    const touchedTraders = new Set<string>();
+    const ids = pendingDecisions.map((d) => d.id);
+    for (const d of pendingDecisions) touchedTraders.add(d.trader_id);
 
-    for (const d of pendingDecisions) {
-      await queryOne(
-        `UPDATE decision SET settled_outcome = $1, resolved_at = to_timestamp($2) WHERE id = $3`,
-        [outcome, resolvedAt, d.id]
-      );
-      touchedTraders.add(d.trader_id);
+    await query(
+      `UPDATE decision SET settled_outcome = $1, resolved_at = to_timestamp($2) WHERE id = ANY($3::uuid[])`,
+      [outcome, resolvedAt, ids]
+    );
 
-      await query(
-        `UPDATE echo SET status = 'settled', settled_outcome = $1 WHERE source_decision_id = $2 AND status = 'pending'`,
-        [outcome, d.id]
-      );
-    }
+    await query(
+      `UPDATE echo SET status = 'settled', settled_outcome = $1 WHERE source_decision_id = ANY($2::uuid[]) AND status = 'pending'`,
+      [outcome, ids]
+    );
 
     log.info("market resolved", {
       marketId: info.marketId,

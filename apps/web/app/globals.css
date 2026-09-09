@@ -54,8 +54,88 @@ body {
 }
 
 body {
-  font-family: var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * The light act.
+ *
+ * The reference in `design/references/web3-wgmi.jpeg` opens on an off-white ground carrying a
+ * dotted grid, then cuts hard to black about 43% down the page. That structure is the design,
+ * so the landing page needs a light ground even though every app surface behind it stays dark
+ * by the commitment stated at the top of this file. The two do not conflict: the dark rule is
+ * about trading surfaces, and this is the front door.
+ *
+ * Scoped to `.act-light` rather than a media query or a theme attribute, because it is not a
+ * mode a visitor chooses. It is one band of one page, and any element inside it inherits the
+ * light values for the same token names, so components do not need to know which act they are
+ * rendering in.
+ */
+.act-light {
+  color-scheme: light;
+
+  --plane: #f2f2f2;
+  --surface: #ffffff;
+  --surface-raised: #fafafa;
+  --rule: #e2e2e2;
+  --edge: #cfcfcf;
+
+  --ink: #0a0a0a;
+  --ink-2: #5c5c5c;
+  --ink-3: #9a9a9a;
+
+  /* The reference sets its active nav link in an indigo that is nearly blue-violet. */
+  --accent: #4b3df5;
+
+  background: var(--plane);
+  color: var(--ink);
+}
+
+/**
+ * The dotted grid, on both grounds.
+ *
+ * One radial-gradient rather than an image: it is a handful of bytes, it stays crisp at every
+ * density, and the spacing can be tuned in one place. 20px matches the reference's rhythm at
+ * the width it was designed for. The dot is deliberately faint — in the reference you read it
+ * as texture and only notice it as dots if you look for them.
+ */
+.dotgrid {
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: -1px -1px;
+}
+
+.dotgrid-light {
+  color: rgba(0, 0, 0, 0.13);
+}
+
+.dotgrid-dark {
+  color: rgba(255, 255, 255, 0.07);
+}
+
+/**
+ * Tile colours, for the scattered hero squircles and the card art panels only.
+ *
+ * The reference carries four saturated grounds and they are what stop the page reading as a
+ * grey template. These are art, never state: nothing in the product may use them to mean
+ * anything. The reserved status four (good / warning / serious / critical) and the accent stay
+ * exactly where they are, which is why these live under their own names rather than being
+ * added to the palette above.
+ */
+:root {
+  --tile-vermillion: #ff4d2d;
+  --tile-chartreuse: #ccff2f;
+  --tile-indigo: #5b3df5;
+  --tile-cyan: #24d3ee;
+  --tile-ink: #0a0a0a;
+  --tile-bone: #ececec;
+
+  /* The middle card in the reference is a gradient, not a flat fill. */
+  --tile-gradient: linear-gradient(150deg, var(--tile-indigo) 0%, var(--tile-cyan) 100%);
+
+  /* Squircle-ish. The reference's radius reads as roughly 22% of the tile's own size. */
+  --tile-radius: 22%;
 }
 
 /* Full-bleed pages own their own scroll behaviour; anchor links should ease. */

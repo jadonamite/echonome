@@ -1,20 +1,31 @@
 import type { Metadata } from "next";
-import { Archivo, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { CookieBanner } from "@/components/site/cookie-banner";
 
 /**
- * Two families, no more. Archivo is a grotesque that holds its shape at 7rem with tight
- * tracking, which is what the display sizes in tailwind.config.ts assume, and stays
- * readable at 17px so it can carry body copy too. JetBrains Mono is here for one job:
- * figures read off the chain, where a tabular column that does not align is a bug.
+ * Two families, no more.
+ *
+ * General Sans replaced Archivo once the WGMI reference was read properly rather than treated
+ * as a mood board. That headline is a wide geometric grotesque with a double-storey `a`, which
+ * Archivo is too neutral for and Poppins cannot be, its `a` being single-storey. Self-hosted
+ * from `fonts/` rather than pulled from Fontshare at runtime, so the page owes nothing to a
+ * third party to render its own headline. See `fonts/LICENSE.md`.
+ *
+ * JetBrains Mono is here for one job: figures read off the chain, where a column of numbers
+ * that does not align is a bug.
  */
-const archivo = Archivo({
-  subsets: ["latin"],
-  variable: "--font-archivo",
+const generalSans = localFont({
+  variable: "--font-sans",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
+  src: [
+    { path: "../fonts/GeneralSans-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/GeneralSans-500.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/GeneralSans-600.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/GeneralSans-700.woff2", weight: "700", style: "normal" },
+  ],
 });
 
 const mono = JetBrains_Mono({
@@ -42,7 +53,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
+    <html lang="en" className={`${generalSans.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-plane text-ink antialiased">
         <Providers>
           {children}

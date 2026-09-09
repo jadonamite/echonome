@@ -23,9 +23,23 @@ const config: Config = {
         serious: "var(--serious)",
         critical: "var(--critical)",
         accent: "var(--accent)",
+
+        // Landing art only. Never state — see the note in globals.css.
+        "tile-vermillion": "var(--tile-vermillion)",
+        "tile-chartreuse": "var(--tile-chartreuse)",
+        "tile-indigo": "var(--tile-indigo)",
+        "tile-cyan": "var(--tile-cyan)",
+        "tile-ink": "var(--tile-ink)",
+        "tile-bone": "var(--tile-bone)",
+      },
+      backgroundImage: {
+        "tile-gradient": "var(--tile-gradient)",
+      },
+      borderRadius: {
+        tile: "var(--tile-radius)",
       },
       fontFamily: {
-        sans: ["var(--font-archivo)", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       /**
