@@ -39,7 +39,17 @@ const ORDER_TYPE_IOC = 2; // ImmediateOrCancel — execute now against the book 
 // intended — see ROADMAP.md. Both are process-local (single worker instance today); a
 // multi-instance deployment needs this moved to a shared store (Redis/Postgres), not
 // in-memory counters.
-const MAX_ECHOES_PER_MINUTE = 20;
+/**
+ * Sliding-window cap on echoes per minute.
+ *
+ * Configurable because the default is demonstrably too low for a busy leader: one follower
+ * copying `ec-maker` hit it 28 times in half an hour, and every one of those was an echo a
+ * follower had asked for and did not get. Raising it is a real safety decision though — this
+ * cap is what stops a bug, bad price data or a compromised strategy from emptying an account
+ * one valid-looking order at a time — so the default stays conservative and raising it is an
+ * explicit, recorded choice rather than a quiet edit.
+ */
+const MAX_ECHOES_PER_MINUTE = Number(process.env.MIRROR_MAX_ECHOES_PER_MINUTE ?? 20);
 const echoTimestamps: number[] = [];
 
 function rateLimitOk(): boolean {

@@ -1,6 +1,6 @@
 import { query } from "../db/client.js";
 import { createReadOnlyExchange, isTargetMarket, isTradeableTargetMarket } from "../chain/client.js";
-import type { HealthFacts } from "./checks.js";
+import { DELIBERATE_REFUSALS, type HealthFacts } from "./checks.js";
 
 /**
  * Gathers what the checks need, from the chain and the database. Kept apart from
@@ -48,7 +48,8 @@ export async function gatherFacts(): Promise<HealthFacts> {
     last_settlement_age: number | null;
     unsettled_resolved: string;
     recent_echoes: string;
-    recent_failures: string;
+    recent_faults: string;
+    recent_refusals: string;
   }>(
     `SELECT
        (SELECT floor(extract(epoch FROM now() - max(created_at))) FROM decision) AS last_decision_age,
@@ -57,8 +58,10 @@ export async function gatherFacts(): Promise<HealthFacts> {
           AND market_id = ANY($1::text[])) AS unsettled_resolved,
        (SELECT count(*) FROM echo WHERE created_at > now() - interval '${ECHO_WINDOW}') AS recent_echoes,
        (SELECT count(*) FROM echo WHERE created_at > now() - interval '${ECHO_WINDOW}'
-          AND status = 'failed') AS recent_failures`,
-    [resolvedMarketIds(targets, nowSec)]
+          AND status = 'failed' AND NOT (failure_reason = ANY($2::text[]))) AS recent_faults,
+       (SELECT count(*) FROM echo WHERE created_at > now() - interval '${ECHO_WINDOW}'
+          AND status = 'failed' AND failure_reason = ANY($2::text[])) AS recent_refusals`,
+    [resolvedMarketIds(targets, nowSec), [...DELIBERATE_REFUSALS]]
   );
 
   const beats = await query<{ component: string; age: number }>(
@@ -77,7 +80,8 @@ export async function gatherFacts(): Promise<HealthFacts> {
     lastSettlementAgeSec: ages?.last_settlement_age === null ? null : Number(ages.last_settlement_age),
     unsettledResolvedDecisions: Number(ages?.unsettled_resolved ?? 0),
     recentEchoes: Number(ages?.recent_echoes ?? 0),
-    recentEchoFailures: Number(ages?.recent_failures ?? 0),
+    recentEchoFaults: Number(ages?.recent_faults ?? 0),
+    recentEchoRefusals: Number(ages?.recent_refusals ?? 0),
     heartbeatAgesSec,
   };
 }

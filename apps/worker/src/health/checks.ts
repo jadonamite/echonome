@@ -54,9 +54,20 @@ export interface HealthFacts {
   lastSettlementAgeSec: number | null;
   /** Decisions on markets that have resolved but which we haven't scored yet. */
   unsettledResolvedDecisions: number;
-  /** Echoes attempted in the recent window, and how many of those failed. */
+  /** Echoes attempted in the recent window. */
   recentEchoes: number;
-  recentEchoFailures: number;
+  /**
+   * Failures that indicate something is BROKEN — a revert, a nonce collision, an unreachable
+   * account. Deliberate refusals are counted separately and deliberately excluded.
+   *
+   * The first version counted every non-success. On live data that read 70% failure and paged
+   * critical, when 50 of the 54 "failures" were the rate limiter and the market's minimum order
+   * size doing exactly their jobs. An alert that fires when the system is working correctly is
+   * an alert that gets muted, which is the specific way monitoring dies.
+   */
+  recentEchoFaults: number;
+  /** Refusals by policy: rate limit, below the venue minimum, follower paused, and so on. */
+  recentEchoRefusals: number;
   /** Component -> seconds since it last stamped a heartbeat. Missing key = never stamped. */
   heartbeatAgesSec: Record<string, number | null>;
 }
@@ -81,7 +92,28 @@ export const THRESHOLDS = {
   echoSampleFloor: 5,
   echoFailureRateWarn: 0.25,
   echoFailureRateCritical: 0.5,
+  /** Refusals are not faults, so this is a much higher bar and never worse than a warning. */
+  echoRefusalRateWarn: 0.5,
 } as const;
+
+/**
+ * Failure reasons that mean the system DECLINED on purpose. Everything else is a fault.
+ *
+ * Kept as an explicit list rather than a pattern, so adding a new refusal reason to the mirror
+ * engine is a deliberate act that shows up in review — the failure mode to avoid is a future
+ * reason quietly landing in whichever bucket a regex happens to put it in.
+ */
+export const DELIBERATE_REFUSALS = [
+  "rate_limited",
+  "below_market_minimum",
+  "no_liquidity_to_cross",
+  "follower_paused",
+  "authorisation_expired",
+  "budget_exhausted",
+  "pool_not_allowlisted",
+  "no_account_deployed",
+  "leader_size_unknown",
+] as const;
 
 export function evaluateHealth(facts: HealthFacts): HealthFinding[] {
   const findings: HealthFinding[] = [];
@@ -154,20 +186,38 @@ export function evaluateHealth(facts: HealthFacts): HealthFinding[] {
   //    sustained ratio means something systemic (a bad price rule, an exhausted account, a
   //    revoked authorisation we haven't noticed).
   if (facts.recentEchoes >= t.echoSampleFloor) {
-    const rate = facts.recentEchoFailures / facts.recentEchoes;
+    const rate = facts.recentEchoFaults / facts.recentEchoes;
+    const context =
+      facts.recentEchoRefusals > 0
+        ? ` (a further ${facts.recentEchoRefusals} were refused by policy, which is not a fault)`
+        : "";
     if (rate >= t.echoFailureRateCritical) {
       findings.push({
         check: "echo-success-rate",
         severity: "critical",
-        message: `${facts.recentEchoFailures}/${facts.recentEchoes} recent echoes failed (${Math.round(rate * 100)}%) — followers are being told their trades didn't happen`,
+        message: `${facts.recentEchoFaults}/${facts.recentEchoes} recent echoes failed for a reason that indicates a fault (${Math.round(rate * 100)}%) — followers are being told their trades didn't happen${context}`,
       });
     } else if (rate >= t.echoFailureRateWarn) {
       findings.push({
         check: "echo-success-rate",
         severity: "warn",
-        message: `${facts.recentEchoFailures}/${facts.recentEchoes} recent echoes failed (${Math.round(rate * 100)}%)`,
+        message: `${facts.recentEchoFaults}/${facts.recentEchoes} recent echoes hit a fault (${Math.round(rate * 100)}%)${context}`,
       });
     }
+  }
+
+  // A separate, quieter signal. A follower whose every echo is refused is not experiencing an
+  // outage — their settings do not fit this leader's trade sizes, or their limits have run out.
+  // That is worth surfacing and is emphatically not worth paging anyone about.
+  if (
+    facts.recentEchoes >= t.echoSampleFloor &&
+    facts.recentEchoRefusals / facts.recentEchoes >= t.echoRefusalRateWarn
+  ) {
+    findings.push({
+      check: "echo-refusal-rate",
+      severity: "warn",
+      message: `${facts.recentEchoRefusals}/${facts.recentEchoes} recent echoes were refused by policy — a follower's size, limits or the venue's minimum are turning most of their copies away`,
+    });
   }
 
   // 5. Heartbeats. Catches a loop wedged on a hung network call — the process is alive, the

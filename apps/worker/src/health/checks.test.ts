@@ -19,7 +19,8 @@ const healthy: HealthFacts = {
   lastSettlementAgeSec: 120,
   unsettledResolvedDecisions: 0,
   recentEchoes: 20,
-  recentEchoFailures: 0,
+  recentEchoFaults: 0,
+  recentEchoRefusals: 0,
   heartbeatAgesSec: { watcher: 9, settlement: 15 },
 };
 
@@ -134,19 +135,34 @@ describe("the winningOutcome type mismatch (08 Sep)", () => {
 });
 
 describe("echo failure rate", () => {
-  it("escalates warn then critical as the ratio climbs", () => {
-    expect(evaluateHealth(facts({ recentEchoes: 20, recentEchoFailures: 6 }))[0].severity).toBe("warn");
-    expect(evaluateHealth(facts({ recentEchoes: 20, recentEchoFailures: 15 }))[0].severity).toBe("critical");
+  it("escalates warn then critical as the fault ratio climbs", () => {
+    expect(evaluateHealth(facts({ recentEchoes: 20, recentEchoFaults: 6 }))[0].severity).toBe("warn");
+    expect(evaluateHealth(facts({ recentEchoes: 20, recentEchoFaults: 15 }))[0].severity).toBe("critical");
   });
 
   it("refuses to judge a ratio on too few samples", () => {
     // 1 of 2 failing is 50%, but it is also just two echoes.
-    const f = facts({ recentEchoes: 2, recentEchoFailures: 1 });
+    const f = facts({ recentEchoes: 2, recentEchoFaults: 1 });
     expect(checks(f)).not.toContain("echo-success-rate");
   });
 
   it("says nothing when no echoes have been attempted", () => {
-    expect(checks(facts({ recentEchoes: 0, recentEchoFailures: 0 }))).not.toContain("echo-success-rate");
+    expect(checks(facts({ recentEchoes: 0, recentEchoFaults: 0 }))).not.toContain("echo-success-rate");
+  });
+
+  // REGRESSION, from live data on 09 Sep: the first version counted every non-success as a
+  // failure and paged critical at "70% failed" when 50 of those 54 were the rate limiter and
+  // the venue's minimum order size working exactly as designed. An alert that fires while the
+  // system is behaving correctly is one that gets muted, which is how monitoring dies.
+  it("does not treat a deliberate refusal as a fault", () => {
+    const f = facts({ recentEchoes: 77, recentEchoFaults: 4, recentEchoRefusals: 50 });
+    expect(checks(f)).not.toContain("echo-success-rate");
+  });
+
+  it("still surfaces a wall of refusals — as a warning about settings, not an outage", () => {
+    const f = facts({ recentEchoes: 77, recentEchoFaults: 0, recentEchoRefusals: 50 });
+    expect(checks(f)).toContain("echo-refusal-rate");
+    expect(overallSeverity(evaluateHealth(f))).toBe("warn");
   });
 });
 
