@@ -132,3 +132,18 @@ CREATE INDEX IF NOT EXISTS proxy_grant_account_idx ON proxy_grant (account_addre
 -- what a follower chose. Nullable because rows written before this column existed genuinely
 -- don't have it, and inventing a value for them would be worse than skipping them.
 ALTER TABLE decision ADD COLUMN IF NOT EXISTS quantity numeric;
+
+-- ── Edge scoring (2026-09-09) ──────────────────────────────────────────────────────
+-- The Brier score ranks traders by how ACCURATE the prices they paid turned out to be.
+-- A trader profits when a price turns out to be WRONG in their favour. Those are opposite
+-- goals, so ranking on Brier ranks against the traders most worth copying. Edge is the
+-- mean of (outcome - price paid), which in a binary market is exactly expected profit per
+-- unit staked. `edge_lower` is the conservative end of its 95% interval, and is what the
+-- leaderboard sorts on so a lucky streak cannot outrank accumulated evidence.
+ALTER TABLE calibration_score ADD COLUMN IF NOT EXISTS edge numeric;
+ALTER TABLE calibration_score ADD COLUMN IF NOT EXISTS edge_lower numeric;
+
+-- A trader with no resolved calls has no Brier score, and NULL is the honest way to say so.
+-- The column was NOT NULL because the only traders that existed when it was written already
+-- had history; registering a new trader before its first settled market broke the recompute.
+ALTER TABLE calibration_score ALTER COLUMN brier_score DROP NOT NULL;

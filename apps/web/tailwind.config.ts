@@ -25,7 +25,22 @@ const config: Config = {
         accent: "var(--accent)",
       },
       fontFamily: {
-        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        sans: ["var(--font-archivo)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+      },
+      /**
+       * Display sizes carry their own tracking and leading. Tailwind's defaults leave
+       * display type too loose on both axes, which is the single most common reason a
+       * large headline reads as a scaled-up paragraph rather than as a headline.
+       */
+      fontSize: {
+        "display-sm": ["2.5rem", { lineHeight: "1.05", letterSpacing: "-0.03em" }],
+        display: ["3.5rem", { lineHeight: "0.98", letterSpacing: "-0.035em" }],
+        "display-lg": ["5rem", { lineHeight: "0.94", letterSpacing: "-0.04em" }],
+        "display-xl": ["7rem", { lineHeight: "0.9", letterSpacing: "-0.045em" }],
+      },
+      maxWidth: {
+        prose: "68ch",
       },
     },
   },

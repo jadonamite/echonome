@@ -28,7 +28,23 @@
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
-  --accent: #3987e5;
+
+  /**
+   * Sonar cyan, and the only accent in the system. It was #3987e5 until the anechoic
+   * direction landed; the replacement is deliberate on two counts. Cyan reads as
+   * instrumentation rather than as the default blue every trading site reaches for, and
+   * it sits far enough from --good that a live figure can never be mistaken for a status
+   * green. Adding a second accent for "live data" was the alternative and it would have
+   * put a second green next to the status green, which is the exact confusion the
+   * reserved-status rule above exists to prevent. 13:1 on --plane.
+   *
+   * One rule governs it: this colour means the number next to it was read from the chain
+   * or the database just now. It is never decoration.
+   */
+  --accent: #6fe3e0;
+
+  /* Display type sits tighter than body type at every size above 32px. */
+  --tracking-display: -0.035em;
 }
 
 html,
@@ -38,8 +54,19 @@ body {
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Full-bleed pages own their own scroll behaviour; anchor links should ease. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 /* Columns of figures must align vertically; prose numbers must not. */

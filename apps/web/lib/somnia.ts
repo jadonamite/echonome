@@ -37,6 +37,21 @@ export const OPERATOR_PERMISSIONS_REGISTRY: Address =
  */
 export const OPERATOR_GRANT_APPLIES_TO_BINARY = false;
 
+/**
+ * EchoAccountFactory on Shannon, deployed 2026-09-09 and custody-verified the same day
+ * (`npm run verify:custody -w @echonome/contracts`).
+ *
+ * Hard-coded rather than read from an env var, on purpose. A follower is about to deploy a
+ * contract from this factory's code and put money in it, so the address they are trusting
+ * has to be visible in the source of the page that asks them to do it. An env var would let
+ * a deploy quietly point them at a different factory.
+ */
+export const ECHO_ACCOUNT_FACTORY: Address = "0xcee09039dc8020e01a12387eaa37b6a257b793d7";
+
+/** The chain everything on this site refers to. Shown in the footer so it is never ambiguous. */
+export const NETWORK_NAME = "Somnia Shannon testnet";
+export const EXPLORER_URL = "https://shannon-explorer.somnia.network";
+
 const indexerUrl =
   process.env.NEXT_PUBLIC_SHANNON_INDEXER_URL ?? "https://dev.smk.somnia.host/v1/graphql";
 const wsRpcUrl =

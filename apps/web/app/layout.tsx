@@ -1,56 +1,52 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { WalletButton } from "@/components/wallet-button";
+import { CookieBanner } from "@/components/site/cookie-banner";
+
+/**
+ * Two families, no more. Archivo is a grotesque that holds its shape at 7rem with tight
+ * tracking, which is what the display sizes in tailwind.config.ts assume, and stays
+ * readable at 17px so it can carry body copy too. JetBrains Mono is here for one job:
+ * figures read off the chain, where a tabular column that does not align is a bug.
+ */
+const archivo = Archivo({
+  subsets: ["latin"],
+  variable: "--font-archivo",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["400", "500"],
+});
 
 export const metadata: Metadata = {
-  title: "Echonome",
-  description: "Copy-trading for DreamDEX Event Contracts, ranked by calibration instead of raw P&L.",
+  metadataBase: new URL("https://echonome.xyz"),
+  title: {
+    default: "Echonome",
+    template: "%s · Echonome",
+  },
+  description:
+    "Copy-trading for DreamDEX Event Contracts, ranked by calibration instead of profit. Your funds stay in an account only you can withdraw from.",
+  openGraph: {
+    title: "Echonome",
+    description:
+      "Copy the traders who are right when they say they are. Ranked by calibration, not profit.",
+    images: ["/images/hero-anechoic.jpg"],
+  },
 };
-
-const NAV = [
-  { href: "/", label: "Leaderboard" },
-  { href: "/connect", label: "Connect" },
-  { href: "/me", label: "My echoes" },
-];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-plane text-ink">
+    <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
+      <body className="min-h-screen bg-plane text-ink antialiased">
         <Providers>
-          <header className="border-b border-rule">
-            <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-4">
-              <div className="flex items-baseline gap-6">
-                <Link href="/" className="text-base font-semibold tracking-tight">
-                  Echonome
-                </Link>
-                <nav className="flex gap-5">
-                  {NAV.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="text-sm text-ink-3 transition-colors hover:text-ink"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </nav>
-              </div>
-              <WalletButton />
-            </div>
-          </header>
-
-          <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
-
-          <footer className="mx-auto max-w-5xl px-6 pb-12 pt-4">
-            <p className="border-t border-rule pt-4 text-xs text-ink-3">
-              Every trade is a sound. Every copy is its echo. · Somnia Shannon testnet ·
-              Echonome never holds your funds — it can only place and cancel orders you have
-              explicitly authorised, and you can revoke that at any time.
-            </p>
-          </footer>
+          {children}
+          <CookieBanner />
         </Providers>
       </body>
     </html>

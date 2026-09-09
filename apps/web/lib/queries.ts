@@ -1,4 +1,4 @@
-import { query, queryOne } from "./db";
+import { query, queryOne, queryOrNull } from "./db";
 import { MIN_CALIBRATION_SAMPLE, type Side, type EchoStatus, type ReliabilityBucket } from "@echonome/shared";
 
 /**
@@ -17,7 +17,14 @@ export interface LeaderboardEntry {
   address: string;
   label: string;
   isSeed: boolean;
-  /** Lower is better. Null until this trader has at least one resolved decision. */
+  /**
+   * Mean profit per unit staked — how much better they did than the prices they paid.
+   * +0.05 means five cents per dollar. THIS is what a follower is choosing on.
+   */
+  edge: number | null;
+  /** The conservative end of edge's 95% interval, and what the ranking sorts on. */
+  edgeLower: number | null;
+  /** Lower is better. Kept as a secondary signal, never as the ranking. */
   brierScore: number | null;
   sampleCount: number;
   /** True while sampleCount is below the threshold — shown, not hidden. */
@@ -39,6 +46,8 @@ interface LeaderboardRow {
   label: string;
   is_seed: boolean;
   brier_score: string | null;
+  edge: string | null;
+  edge_lower: string | null;
   sample_count: string;
   reliability: ReliabilityBucket[] | null;
   computed_at: Date | null;
@@ -57,6 +66,8 @@ function toEntry(r: LeaderboardRow): LeaderboardEntry {
     address: r.address,
     label: r.label,
     isSeed: r.is_seed,
+    edge: r.edge === null ? null : Number(r.edge),
+    edgeLower: r.edge_lower === null ? null : Number(r.edge_lower),
     brierScore: r.brier_score === null ? null : Number(r.brier_score),
     sampleCount,
     warmingUp: sampleCount < MIN_CALIBRATION_SAMPLE,
@@ -74,7 +85,8 @@ function toEntry(r: LeaderboardRow): LeaderboardEntry {
 
 const LEADERBOARD_SELECT = `
   SELECT t.id, t.address, t.label, t.is_seed,
-         cs.brier_score, COALESCE(cs.sample_count, 0) AS sample_count, cs.reliability, cs.computed_at,
+         cs.brier_score, cs.edge, cs.edge_lower,
+         COALESCE(cs.sample_count, 0) AS sample_count, cs.reliability, cs.computed_at,
          s.decision_count, s.resolved_count, s.hit_count, s.last_decision_at,
          COALESCE(f.active_followers, 0) AS active_followers
   FROM trader t
@@ -92,18 +104,31 @@ const LEADERBOARD_SELECT = `
   ) f ON true`;
 
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
-  // Ranked traders first, best (lowest) Brier score first within them; warming-up
-  // traders keep their place below, ordered by how close they are to qualifying.
-  // A trader is never dropped from this list for being new — see the "warming up"
-  // rule in TECHNICAL_ARCHITECTURE.md.
-  const rows = await query<LeaderboardRow>(
+  // Ranked traders first, highest EDGE within them — specifically `edge_lower`, the
+  // conservative end of the interval, so a trader climbs by accumulating evidence rather
+  // than by having a good run. Ranking on the raw edge would put twenty lucky calls above
+  // nine hundred consistent ones.
+  //
+  // NOT ranked on the Brier score, deliberately. Brier rewards a price that turned out to be
+  // accurate; a trader profits when a price turns out to be wrong in their favour. Sorting on
+  // it ranks against the people most worth copying — see `edgeScore` in the worker's
+  // calibration engine for the full argument.
+  //
+  // A trader is never dropped from this list for being new; see the "warming up" rule in
+  // TECHNICAL_ARCHITECTURE.md.
+  //
+  // Reads through queryOrNull so a deploy without a reachable database serves the page's
+  // own empty state rather than a 500. An unreadable board and an empty board look the same
+  // to this function, which is acceptable here only because the page says "no traders yet"
+  // rather than asserting anything about why.
+  const rows = await queryOrNull<LeaderboardRow>(
     `${LEADERBOARD_SELECT}
      ORDER BY (COALESCE(cs.sample_count, 0) >= $1) DESC,
-              cs.brier_score ASC NULLS LAST,
+              cs.edge_lower DESC NULLS LAST,
               COALESCE(cs.sample_count, 0) DESC`,
     [MIN_CALIBRATION_SAMPLE]
   );
-  return rows.map(toEntry);
+  return (rows ?? []).map(toEntry);
 }
 
 export async function getTraderSummary(id: string): Promise<LeaderboardEntry | null> {
@@ -286,7 +311,7 @@ export interface TraceTick {
  * N+1 that only shows up at scale is the kind that ships.
  */
 export async function getRecentTraces(perTrader = 40): Promise<Map<string, TraceTick[]>> {
-  const rows = await query<{ trader_id: string; side: Side; settled_outcome: Side | null }>(
+  const rows = await queryOrNull<{ trader_id: string; side: Side; settled_outcome: Side | null }>(
     `SELECT trader_id, side, settled_outcome FROM (
        SELECT d.trader_id, d.side, d.settled_outcome, d.created_at,
               row_number() OVER (PARTITION BY d.trader_id ORDER BY d.created_at DESC) AS rn
@@ -298,7 +323,7 @@ export async function getRecentTraces(perTrader = 40): Promise<Map<string, Trace
   );
 
   const traces = new Map<string, TraceTick[]>();
-  for (const r of rows) {
+  for (const r of rows ?? []) {
     const ticks = traces.get(r.trader_id) ?? [];
     ticks.push({
       side: r.side,
@@ -308,4 +333,140 @@ export async function getRecentTraces(perTrader = 40): Promise<Map<string, Trace
     traces.set(r.trader_id, ticks);
   }
   return traces;
+}
+
+export interface SiteStats {
+  traders: number;
+  decisions: number;
+  markets: number;
+  echoesSettled: number;
+}
+
+/**
+ * The four figures on the landing page's proof strip. Chosen after checking what the database
+ * actually holds, which corrected two of them.
+ *
+ * "Markets settled" was originally one of these and had to go: every decision in the table has
+ * a settled outcome, so it rendered the identical number to "decisions recorded" and read as a
+ * copy-paste bug. Distinct markets covered is the figure that was actually meant.
+ *
+ * `echoesSettled` counts settled echoes rather than all echo rows, and that distinction is not
+ * cosmetic. There are 296 failed rows against 32 settled ones, most of them refused by an
+ * EchoAccount that had not allowlisted the pool. Printing the total as "echoes placed" would
+ * have put a number on the front page that is ten times the number of echoes that actually
+ * reached a market — on the page whose entire argument is that we do not curate our own
+ * record. Failures are reported where they belong, on the follower's own page, with reasons.
+ */
+export async function getSiteStats(): Promise<SiteStats | null> {
+  const rows = await queryOrNull<{
+    traders: string;
+    decisions: string;
+    markets: string;
+    echoes_settled: string;
+  }>(
+    `SELECT
+       (SELECT count(*) FROM trader)                              AS traders,
+       (SELECT count(*) FROM decision)                            AS decisions,
+       (SELECT count(DISTINCT market_id) FROM decision)           AS markets,
+       (SELECT count(*) FROM echo WHERE status = 'settled')       AS echoes_settled`
+  );
+  if (rows === null) return null;
+  const row = rows[0];
+
+  return {
+    traders: Number(row?.traders ?? 0),
+    decisions: Number(row?.decisions ?? 0),
+    markets: Number(row?.markets ?? 0),
+    echoesSettled: Number(row?.echoes_settled ?? 0),
+  };
+}
+
+export interface CalibrationHighlight {
+  id: string;
+  label: string;
+  brier: number | null;
+  sampleCount: number;
+  buckets: ReliabilityBucket[];
+  /** The band where stated confidence and reality disagree most. */
+  worst: {
+    /** Midpoint of the band, e.g. 0.75 for the calls rated 70-80%. */
+    claimed: number;
+    observed: number;
+    sampleCount: number;
+    /** observed - claimed. Negative means overconfident, the interesting direction. */
+    deviation: number;
+  };
+}
+
+/** A band holding fewer calls than this is noise, and pointing at it would be a claim the sample cannot support. */
+const MIN_BUCKET_SAMPLE = 20;
+
+/**
+ * Finds the trader whose single Brier score hides the most, for the landing page section that
+ * puts one of our own on the front page.
+ *
+ * Selection is by the largest gap between what a trader claimed and what happened, across any
+ * band holding at least MIN_BUCKET_SAMPLE calls. The first version of this ranked by the
+ * spread between a trader's best and worst band instead, which selected exactly backwards: it
+ * picked the trader whose lowest band was near zero and highest near one, meaning the band
+ * order tracked reality perfectly. That is textbook good calibration, and it was about to be
+ * rendered under a heading calling the trader wrong. Distance from the diagonal is the
+ * quantity that means "miscalibrated". Spread across bands is not.
+ *
+ * Returns null when no seed trader has a band with enough calls, and the section then does not
+ * render at all, rather than making a claim about a sample too thin to carry it.
+ */
+export async function getCalibrationHighlight(): Promise<CalibrationHighlight | null> {
+  const rows = await queryOrNull<{
+    id: string;
+    label: string;
+    brier: string | null;
+    sample_count: number | null;
+    reliability: ReliabilityBucket[] | null;
+  }>(
+    `SELECT t.id, t.label, c.brier_score AS brier, c.sample_count, c.reliability
+     FROM trader t
+     JOIN calibration_score c ON c.trader_id = t.id
+     WHERE t.is_seed = true AND c.reliability IS NOT NULL`
+  );
+  if (rows === null) return null;
+
+  let best: CalibrationHighlight | null = null;
+
+  for (const row of rows) {
+    const buckets = (row.reliability ?? []).filter((b) => b.sampleCount > 0);
+    if (buckets.length === 0) continue;
+
+    // A bucket labelled 0.7 holds the calls rated from 70% up to 80%, so its midpoint is 0.75.
+    // Comparing against the lower bound instead would report a systematic 5-point error that
+    // is an artefact of the labelling rather than anything the trader did.
+    let worst: CalibrationHighlight["worst"] | null = null;
+    for (const bucket of buckets) {
+      if (bucket.sampleCount < MIN_BUCKET_SAMPLE) continue;
+      const claimed = bucket.bucket + 0.05;
+      const deviation = bucket.observedFrequency - claimed;
+      if (worst === null || Math.abs(deviation) > Math.abs(worst.deviation)) {
+        worst = {
+          claimed,
+          observed: bucket.observedFrequency,
+          sampleCount: bucket.sampleCount,
+          deviation,
+        };
+      }
+    }
+    if (worst === null) continue;
+
+    if (best === null || Math.abs(worst.deviation) > Math.abs(best.worst.deviation)) {
+      best = {
+        id: row.id,
+        label: row.label,
+        brier: row.brier === null ? null : Number(row.brier),
+        sampleCount: Number(row.sample_count ?? 0),
+        buckets,
+        worst,
+      };
+    }
+  }
+
+  return best;
 }
