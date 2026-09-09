@@ -83,6 +83,7 @@ async function settleOnce() {
 
     const resolvedAt = info.resolvedAtTimestamp ? Number(info.resolvedAtTimestamp) : Math.floor(Date.now() / 1000);
     const ids = pendingDecisions.map((d) => d.id);
+    const touchedTraders = new Set<string>();
     for (const d of pendingDecisions) touchedTraders.add(d.trader_id);
 
     await query(

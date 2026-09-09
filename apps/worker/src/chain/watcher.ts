@@ -244,7 +244,10 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
               market: fill.market,
               impliedProbability,
             });
-            await onNewDecision(inserted.id);
+            // Trigger mirror asynchronously so waiting on on-chain transaction confirmations never blocks the fill watcher loop or heartbeat
+            onNewDecision(inserted.id).catch((err) =>
+              log.error("mirror decision failed", { decisionId: inserted.id, err: String(err) })
+            );
           }
         } catch (err) {
           // One bad fill must never take the whole watcher down — see FEEDBACK.md.

@@ -12,5 +12,9 @@
     "worker:dev": "npm run dev -w @echonome/worker",
     "web:dev": "npm run dev -w @echonome/web"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@neon/config": "^1.3.2",
+    "@neon/env": "^1.2.3"
+  }
 }
