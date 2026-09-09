@@ -197,7 +197,8 @@ export default function MePage() {
                   <div className="space-y-1">
                     <p className="text-sm text-ink">{plainLanguage(echo)}</p>
                     <p className="font-mono text-xs text-ink-3 tnum">
-                      {shortMarket(echo.marketId)} · following {echo.traderLabel} ·{" "}
+                      {echo.marketLabel ?? shortMarket(echo.marketId)} · following{" "}
+                      {echo.traderLabel} ·{" "}
                       {timeAgo(echo.createdAt)}
                     </p>
                   </div>
