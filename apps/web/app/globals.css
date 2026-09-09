@@ -101,17 +101,19 @@ body {
  * as texture and only notice it as dots if you look for them.
  */
 .dotgrid {
-  background-image: radial-gradient(currentColor 1px, transparent 1px);
   background-size: 20px 20px;
   background-position: -1px -1px;
 }
 
+/* The dot colour is written into each gradient rather than driven by `currentColor`. The
+   first version used currentColor and set `color` on the variant, which is inherited: every
+   heading and paragraph inside the section would have turned 13%-opacity black. */
 .dotgrid-light {
-  color: rgba(0, 0, 0, 0.13);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.13) 1px, transparent 1px);
 }
 
 .dotgrid-dark {
-  color: rgba(255, 255, 255, 0.07);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
 }
 
 /**

@@ -47,7 +47,6 @@ export const metadata: Metadata = {
     title: "Echonome",
     description:
       "Copy the traders who are right when they say they are. Ranked by calibration, not profit.",
-    images: ["/images/hero-anechoic.jpg"],
   },
 };
 

@@ -1,6 +1,10 @@
 import { query, queryOne, queryOrNull } from "./db";
 import { MIN_CALIBRATION_SAMPLE, type Side, type EchoStatus, type ReliabilityBucket } from "@echonome/shared";
 
+// Re-exported so landing components take their types from the same module they take their
+// data from, rather than reaching past it into the shared package.
+export type { ReliabilityBucket, Side, EchoStatus };
+
 /**
  * Every read this app performs, in one place. Both the API routes under `app/api/*`
  * (the contract in TECHNICAL_ARCHITECTURE.md) and the server components that render
