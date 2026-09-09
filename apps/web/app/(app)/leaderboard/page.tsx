@@ -3,7 +3,6 @@ import { MIN_CALIBRATION_SAMPLE } from "@echonome/shared";
 import { getLeaderboard, getRecentTraces, type LeaderboardEntry } from "@/lib/queries";
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
 import {
-  brierVerdict,
   edgeVerdict,
   formatBrier,
   formatEdge,
@@ -28,6 +27,11 @@ export default async function LeaderboardPage() {
           How much better a trader did than the prices they paid, in cents per dollar
           staked. Sorting uses the conservative end of a 95% confidence interval, so
           traders climb by accumulating evidence rather than a lucky run.
+        </p>
+        <p className="max-w-2xl text-sm leading-relaxed text-ink-3">
+          Accuracy is shown too, as a Brier score, but it is deliberately not the ranking —
+          a price is accurate when it matches reality, and a trader profits when it does
+          not. Sorting on accuracy sorts against the people most worth copying.
         </p>
       </section>
 
@@ -122,16 +126,14 @@ function TraderRow({
             </p>
           </div>
 
-          <div className="flex shrink-0 items-start gap-8">
+          {/* Wraps rather than shrinks: a fourth stat (Brier, since edge became the headline)
+              pushed this off the right edge at 375px and clipped it silently. */}
+          <div className="flex flex-wrap items-start gap-x-6 gap-y-3 sm:gap-x-8">
             <Stat
               label="Edge"
               value={formatEdge(entry.edge)}
               hint={edgeVerdict(entry.edge, entry.edgeLower)}
-            />
-            <Stat
-              label="Brier"
-              value={formatBrier(entry.brierScore)}
-              hint="accuracy, not profit"
+              prominent
             />
             <Stat
               label="Resolved"
@@ -142,6 +144,11 @@ function TraderRow({
               label="Right"
               value={entry.hitRate === null ? "—" : `${Math.round(entry.hitRate * 100)}%`}
               hint="of resolved calls"
+            />
+            <Stat
+              label="Brier"
+              value={formatBrier(entry.brierScore)}
+              hint="accuracy, not profit"
             />
           </div>
         </div>
@@ -154,12 +161,35 @@ function TraderRow({
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
+/**
+ * `prominent` marks the stat the ranking actually uses. Edge decides the order, so it reads
+ * larger than the ones beside it — a row where every number looks equally important hides
+ * which one the list is sorted by.
+ */
+function Stat({
+  label,
+  value,
+  hint,
+  prominent = false,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  prominent?: boolean;
+}) {
   return (
     <div className="space-y-0.5 text-right">
       <p className="text-[10px] uppercase tracking-wider text-ink-3">{label}</p>
-      <p className="font-mono text-base text-ink tnum">{value}</p>
-      <p className="text-[11px] text-ink-3">{hint}</p>
+      <p
+        className={
+          prominent
+            ? "font-mono text-lg font-medium text-ink tnum"
+            : "font-mono text-base text-ink-2 tnum"
+        }
+      >
+        {value}
+      </p>
+      <p className="max-w-[13ch] text-[11px] leading-tight text-ink-3">{hint}</p>
     </div>
   );
 }

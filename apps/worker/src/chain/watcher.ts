@@ -266,8 +266,23 @@ export async function watchFills(onNewDecision: (decisionId: string) => Promise<
     await beat("watcher", { watchedMarkets: watched.size, traders: traders.length });
   };
 
-  await tick();
-  setInterval(() => {
-    tick().catch((err) => log.error("tick failed", { err: String(err) }));
-  }, POLL_INTERVAL_MS);
+  /**
+   * The first tick is protected exactly like every later one, and that symmetry is the point.
+   *
+   * It used to be a bare `await tick()`. The first thing a tick does is read the trader table,
+   * so a database that was merely slow to accept its first connection threw out of here, out
+   * of watchFills, and into main()'s catch, which calls process.exit(1). Every subsequent tick
+   * already logged the same error and carried on — only the first one was fatal, and it failed
+   * at precisely the moment most likely to meet a cold database: immediately after a deploy.
+   * Neon scales to zero, so "cold" is the normal state, not an edge case.
+   *
+   * Retrying rather than exiting is safe now that /healthz reports the health checks: a worker
+   * that can never reach the database fails its health pass, the probe answers 503, and Render
+   * restarts it. Before that, a silent retry loop would have looked identical to a healthy
+   * process — which is the trade this deliberately avoids.
+   */
+  const safeTick = () => tick().catch((err) => log.error("tick failed", { err: String(err) }));
+
+  await safeTick();
+  setInterval(safeTick, POLL_INTERVAL_MS);
 }

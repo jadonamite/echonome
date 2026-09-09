@@ -1,4 +1,5 @@
 import { query, queryOne, queryOrNull } from "./db";
+import { describeMarket, loadMarketLabels } from "./markets";
 import { MIN_CALIBRATION_SAMPLE, type Side, type EchoStatus, type ReliabilityBucket } from "@echonome/shared";
 
 // Re-exported so landing components take their types from the same module they take their
@@ -143,6 +144,9 @@ export async function getTraderSummary(id: string): Promise<LeaderboardEntry | n
 export interface DecisionView {
   id: string;
   marketId: string;
+  /** "BTC 1-hour" when the indexer knows the market, null when it doesn't — callers fall
+   * back to `shortMarket(marketId)`. See lib/markets.ts. */
+  marketLabel: string | null;
   side: Side;
   /** P(up) the market was pricing when this trade filled — always YES-terms. */
   impliedProbability: number;
@@ -169,9 +173,12 @@ export async function getTraderDecisions(id: string, limit = 100): Promise<Decis
     [id, limit]
   );
 
+  const labels = await loadMarketLabels();
+
   return rows.map((r) => ({
     id: r.id,
     marketId: r.market_id,
+    marketLabel: describeMarket(labels.get(r.market_id)),
     side: r.side,
     impliedProbability: Number(r.implied_probability),
     settledOutcome: r.settled_outcome,
@@ -186,6 +193,8 @@ export interface EchoView {
   traderId: string;
   traderLabel: string;
   marketId: string;
+  /** "BTC 1-hour" when the indexer knows the market, null when it doesn't. See lib/markets.ts. */
+  marketLabel: string | null;
   side: Side;
   size: number;
   status: EchoStatus;
@@ -224,11 +233,14 @@ export async function getEchoesForFollower(followerAddress: string): Promise<Ech
     [followerAddress]
   );
 
+  const labels = await loadMarketLabels();
+
   return rows.map((r) => ({
     id: r.id,
     traderId: r.trader_id,
     traderLabel: r.trader_label,
     marketId: r.market_id,
+    marketLabel: describeMarket(labels.get(r.market_id)),
     side: r.side,
     size: Number(r.size),
     status: r.status,

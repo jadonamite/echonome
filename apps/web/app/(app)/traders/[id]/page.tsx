@@ -157,7 +157,9 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
                 {decisions.map((d) => (
                   <tr key={d.id}>
                     <Td className="whitespace-nowrap text-ink-3">{timeAgo(d.createdAt)}</Td>
-                    <Td className="font-mono text-ink-2 tnum">{shortMarket(d.marketId)}</Td>
+                    <Td className={d.marketLabel ? "text-ink-2" : "font-mono text-ink-2 tnum"}>
+                      {d.marketLabel ?? shortMarket(d.marketId)}
+                    </Td>
                     <Td className="text-ink">{sideLabel(d.side)}</Td>
                     <Td align="right" className="font-mono text-ink-2 tnum">
                       {formatProbability(d.impliedProbability)}{" "}
