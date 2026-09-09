@@ -7,3 +7,5 @@ research/*.output
 .next/
 dist/
 *.tsbuildinfo
+.vercel
+.env*
