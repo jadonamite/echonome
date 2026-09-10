@@ -199,7 +199,7 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
                         href="/feed?filter=discussions"
                         className="font-mono text-xs text-ink-3 hover:text-accent transition"
                       >
-                        💬 Takes
+                        Takes →
                       </Link>
                     </Td>
                   </tr>

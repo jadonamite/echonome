@@ -120,7 +120,9 @@ export function FeedView({ initialTrades, initialFilter = "all" }: FeedViewProps
         </div>
       ) : trades.length === 0 ? (
         <div className="rounded-lg border border-dashed border-rule bg-surface/30 p-12 text-center space-y-3">
-          <div className="text-2xl">📡</div>
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-rule bg-surface-raised font-mono text-xs text-accent">
+            —
+          </div>
           <h3 className="text-sm font-semibold text-ink">No trades found in this view</h3>
           <p className="text-xs text-ink-3 max-w-sm mx-auto">
             {filter === "following"

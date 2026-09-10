@@ -53,6 +53,14 @@ function initialsOf(name: string): string {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
+import Image from "next/image";
+
+const AVATARS: Record<string, string> = {
+  "Alex Mensah": "/avatars/Alex.jpeg",
+  "Arnold Whitfield": "/avatars/Arnold.jpeg",
+  "Ifeoma Balogun": "/avatars/Ifeoma.jpeg",
+};
+
 export function TraderAvatar({
   address,
   name,
@@ -66,6 +74,24 @@ export function TraderAvatar({
   size?: number;
   className?: string;
 }) {
+  const customImg = AVATARS[name];
+  if (customImg) {
+    return (
+      <span
+        className={`relative inline-block shrink-0 overflow-hidden rounded-full border border-rule ${className}`}
+        style={{ width: size, height: size }}
+      >
+        <Image
+          src={customImg}
+          alt={name}
+          width={size}
+          height={size}
+          className="h-full w-full object-cover"
+        />
+      </span>
+    );
+  }
+
   const h = hash(address.toLowerCase());
   const ground = GROUNDS[h % GROUNDS.length];
   const rotA = (h >> 3) % 360;

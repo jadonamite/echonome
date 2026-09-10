@@ -13,6 +13,14 @@ import {
   shortMarket,
   timeAgo,
 } from "@/lib/format";
+import {
+  HeartIcon,
+  CommentIcon,
+  ShareIcon,
+  EchoIcon,
+  BookmarkIcon,
+  DotsIcon,
+} from "./icons";
 import { TradeCommentsThread } from "./trade-comments-thread";
 import { useToast } from "@/components/toast";
 
@@ -35,15 +43,22 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
   const pricePaid = isUp ? trade.impliedProbability : 1 - trade.impliedProbability;
   const isSettled = trade.settledOutcome !== null;
   const isWon = trade.wasRight === true;
+  const totalLikes = reactions.bullish + reactions.bearish + reactions.echoed;
 
   const injected = connectors[0];
+
+  const narrative = isSettled
+    ? isWon
+      ? `Position on ${trade.marketLabel ?? shortMarket(trade.marketId)} settled in favor of ${trade.side.toUpperCase()}. Realized a +${Math.round((1 - pricePaid) * 100)}¢ edge per unit staked on the hourly window.`
+      : `Position on ${trade.marketLabel ?? shortMarket(trade.marketId)} settled ${trade.settledOutcome?.toUpperCase()} against the ${trade.side.toUpperCase()} call.`
+    : `Opened a ${trade.side.toUpperCase()} position on ${trade.marketLabel ?? shortMarket(trade.marketId)} at ${Math.round(pricePaid * 100)}¢ (${formatProbability(trade.impliedProbability)} implied probability). Target settlement at the close of the current hourly window.`;
 
   async function handleReaction(reactionType: ReactionType) {
     if (!isConnected || !address) {
       show({
         tone: "info",
         title: "Wallet required",
-        detail: "Connect your wallet to react to trades.",
+        detail: "Connect your wallet to endorse or react to trades.",
       });
       if (injected) connect({ connector: injected });
       return;
@@ -51,13 +66,36 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
 
     if (reacting) return;
 
-    // Optimistic toggle
     const prevReactions = { ...reactions };
     const isTogglingOff = reactions.userReaction === reactionType;
     const newReactions: ReactionCounts = {
-      bullish: reactions.bullish + (reactionType === "bullish" ? (isTogglingOff ? -1 : 1) : reactions.userReaction === "bullish" ? -1 : 0),
-      bearish: reactions.bearish + (reactionType === "bearish" ? (isTogglingOff ? -1 : 1) : reactions.userReaction === "bearish" ? -1 : 0),
-      echoed: reactions.echoed + (reactionType === "echoed" ? (isTogglingOff ? -1 : 1) : reactions.userReaction === "echoed" ? -1 : 0),
+      bullish:
+        reactions.bullish +
+        (reactionType === "bullish"
+          ? isTogglingOff
+            ? -1
+            : 1
+          : reactions.userReaction === "bullish"
+          ? -1
+          : 0),
+      bearish:
+        reactions.bearish +
+        (reactionType === "bearish"
+          ? isTogglingOff
+            ? -1
+            : 1
+          : reactions.userReaction === "bearish"
+          ? -1
+          : 0),
+      echoed:
+        reactions.echoed +
+        (reactionType === "echoed"
+          ? isTogglingOff
+            ? -1
+            : 1
+          : reactions.userReaction === "echoed"
+          ? -1
+          : 0),
       userReaction: isTogglingOff ? null : reactionType,
     };
 
@@ -80,210 +118,241 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
         setReactions(data.reactions);
       }
     } catch {
-      // Revert on error
       setReactions(prevReactions);
       show({
         tone: "error",
         title: "Reaction failed",
-        detail: "Could not record your reaction.",
+        detail: "Could not record your action.",
       });
     } finally {
       setReacting(false);
     }
   }
 
+  function handleShare() {
+    if (typeof window !== "undefined") {
+      navigator.clipboard?.writeText(`${window.location.origin}/feed`);
+      show({
+        tone: "success",
+        title: "Link copied",
+        detail: "Trade link copied to clipboard.",
+      });
+    }
+  }
+
   return (
-    <article className="rounded-lg border border-rule bg-surface overflow-hidden transition hover:border-edge">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-rule/50">
-        <div className="flex items-center gap-3">
-          <Link href={`/traders/${trade.traderId}`} className="group flex items-center gap-3">
-            <TraderAvatar address={trade.traderAddress} name={identity.name} size={36} />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-ink group-hover:text-accent transition">
-                  {identity.name}
-                </span>
-                {trade.traderIsSeed && (
-                  <span className="border border-edge bg-surface-raised px-1 py-0.2 text-[9px] uppercase tracking-wider text-ink-3">
-                    Seed
-                  </span>
-                )}
-              </div>
-              <div className="font-mono text-[11px] text-ink-3">
-                {identity.strategy} · {shortAddress(trade.traderAddress)}
-              </div>
+    <article className="rounded-2xl border border-rule bg-surface p-5 sm:p-6 space-y-4 shadow-sm transition hover:border-edge">
+      {/* 1. Profile Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative flex-shrink-0">
+            <TraderAvatar address={trade.traderAddress} name={identity.name} size={42} />
+            {/* Live status dot */}
+            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface bg-good" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/traders/${trade.traderId}`}
+                className="font-semibold text-sm text-ink hover:underline truncate"
+              >
+                {identity.name}
+              </Link>
+              <span className="text-xs font-mono text-ink-3 flex-shrink-0">
+                · {timeAgo(trade.createdAt)}
+              </span>
             </div>
-          </Link>
+            <p className="text-xs text-ink-3 font-mono truncate">
+              {identity.role ?? identity.strategy} · {shortAddress(trade.traderAddress)}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {trade.traderSampleCount >= 20 && trade.traderEdge !== null ? (
-            <span
-              className={`font-mono text-xs px-2 py-0.5 rounded border ${
-                trade.traderEdge > 0
-                  ? "border-good/40 bg-good/10 text-good"
-                  : "border-edge bg-surface-raised text-ink-3"
-              }`}
-            >
-              {formatEdge(trade.traderEdge)} edge
-            </span>
-          ) : (
-            <span className="font-mono text-[10px] text-ink-3 border border-rule px-1.5 py-0.5 rounded">
-              Warming up ({trade.traderSampleCount}/20)
-            </span>
-          )}
-          <span className="font-mono text-xs text-ink-3">{timeAgo(trade.createdAt)}</span>
-        </div>
+        <Link
+          href={`/traders/${trade.traderId}`}
+          className="text-ink-3 hover:text-ink transition p-1.5 rounded hover:bg-surface-raised"
+          title="View profile & decision history"
+        >
+          <DotsIcon className="w-5 h-5" />
+        </Link>
       </div>
 
-      {/* Main Trade Content */}
-      <div className="p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Position Info */}
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-surface-raised border border-edge px-2.5 py-1 text-xs font-mono font-medium text-ink">
-              {trade.marketLabel ?? shortMarket(trade.marketId)}
-            </span>
-            <span
-              className={`rounded border px-2.5 py-1 text-xs font-mono font-semibold flex items-center gap-1 ${
-                isUp
-                  ? "border-good/40 bg-good/15 text-good"
-                  : "border-critical/40 bg-critical/15 text-critical"
-              }`}
-            >
-              {isUp ? "▲ UP" : "▼ DOWN"}
-            </span>
-            <span className="font-mono text-xs text-ink-2">
-              @ {Math.round(pricePaid * 100)}¢ ({formatProbability(trade.impliedProbability)} P(Up))
+      {/* 2. Post Commentary / Thesis Text */}
+      <p className="text-sm leading-relaxed text-ink-2">
+        {narrative}
+      </p>
+
+      {/* 3. Visual Data Grid (2-Column panels matching the screenshot's media layout) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl overflow-hidden">
+        {/* Left Box: Contract & Call */}
+        <div className="rounded-xl border border-rule bg-plane p-4 flex flex-col justify-between min-h-[150px]">
+          <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 tracking-wider uppercase">
+            <span>{trade.marketLabel ?? shortMarket(trade.marketId)}</span>
+            <span className={isUp ? "text-good font-semibold" : "text-critical font-semibold"}>
+              {trade.side.toUpperCase()}
             </span>
           </div>
 
-          {/* Settlement / Lifecycle Status */}
-          <div>
+          <div className="py-2">
+            <div
+              className={`text-3xl font-bold tracking-tight ${
+                isUp ? "text-good" : "text-critical"
+              }`}
+            >
+              {isUp ? "UP" : "DOWN"}
+            </div>
+            <div className="text-xs font-mono text-ink-2 mt-1">
+              {Math.round(pricePaid * 100)}¢ entry · {formatProbability(trade.impliedProbability)} implied P
+            </div>
+          </div>
+
+          <div className="text-[11px] font-mono">
             {isSettled ? (
-              <span
-                className={`font-mono text-xs px-2 py-1 rounded border flex items-center gap-1 ${
-                  isWon
-                    ? "border-good/40 bg-good/10 text-good font-medium"
-                    : "border-critical/30 bg-critical/5 text-critical/80"
-                }`}
-              >
-                {isWon ? (
-                  <>
-                    <span>✓ Settled {trade.settledOutcome?.toUpperCase()}</span>
-                    <span className="text-[10px] opacity-80">(+{Math.round((1 - pricePaid) * 100)}¢)</span>
-                  </>
-                ) : (
-                  <>
-                    <span>✕ Settled {trade.settledOutcome?.toUpperCase()}</span>
-                  </>
-                )}
+              <span className="text-ink-3">
+                Settled:{" "}
+                <span
+                  className={
+                    isWon ? "text-good font-medium" : "text-critical font-medium"
+                  }
+                >
+                  {trade.settledOutcome?.toUpperCase()}{" "}
+                  {isWon && `(+${Math.round((1 - pricePaid) * 100)}¢)`}
+                </span>
               </span>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1.5 font-mono text-xs text-accent">
-                  <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-                  Live Market
-                </span>
-                <Link
-                  href={`/traders/${trade.traderId}`}
-                  className="rounded border border-edge bg-surface-raised px-2.5 py-1 text-xs text-ink hover:border-accent hover:text-accent transition"
-                >
-                  Copy Trader →
-                </Link>
-              </div>
+              <span className="inline-flex items-center gap-1.5 text-accent">
+                <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+                Live on Shannon
+              </span>
             )}
           </div>
         </div>
 
-        {/* Quantities and Context if available */}
-        {trade.quantity !== null && (
-          <div className="text-[11px] font-mono text-ink-3">
-            Stake Size: {trade.quantity} units
+        {/* Right Box: Calibration & Edge */}
+        <div className="rounded-xl border border-rule bg-plane p-4 flex flex-col justify-between min-h-[150px]">
+          <div className="flex items-center justify-between text-[11px] font-mono text-ink-3 tracking-wider uppercase">
+            <span>Rank & Edge</span>
+            {trade.traderIsSeed && <span>Seed Fleet</span>}
           </div>
-        )}
+
+          <div className="py-2">
+            <div className="text-3xl font-bold font-mono tracking-tight text-ink">
+              {trade.traderEdge !== null ? formatEdge(trade.traderEdge) : "—"}
+            </div>
+            <div className="text-xs font-mono text-ink-3 mt-1">
+              {trade.traderSampleCount >= 20
+                ? "Edge per unit staked (95% CI)"
+                : `Warming up (${trade.traderSampleCount}/20 calls)`}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] font-mono text-ink-3">
+            <span>
+              {trade.echoCount} {trade.echoCount === 1 ? "follower echo" : "follower echoes"}
+            </span>
+            <Link
+              href={`/traders/${trade.traderId}`}
+              className="text-accent hover:underline"
+            >
+              Trace →
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {/* Social Action Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-surface-raised/40 border-t border-rule/60 text-xs">
-        {/* Left: Echo count indicator */}
-        <div className="flex items-center gap-1.5 font-mono text-xs text-ink-3">
-          <span title="Followers copying this trade">🔊</span>
-          <span>
-            {trade.echoCount} {trade.echoCount === 1 ? "echo" : "echoes"}
-          </span>
-        </div>
-
-        {/* Right: Reactions & Comments toggle */}
-        <div className="flex items-center gap-2">
-          {/* Reaction: Bullish */}
+      {/* 4. Minimalist Vector Engagement Bar (Heart, Comment, Share | Echo, Bookmark) */}
+      <div className="pt-2 flex items-center justify-between border-t border-rule/50">
+        <div className="flex items-center gap-5">
+          {/* Like */}
           <button
             type="button"
             onClick={() => handleReaction("bullish")}
             disabled={reacting}
-            className={`flex items-center gap-1 rounded px-2 py-1 font-mono text-xs border transition ${
-              reactions.userReaction === "bullish"
-                ? "border-good/50 bg-good/20 text-good font-semibold"
-                : "border-rule bg-surface/80 text-ink-3 hover:border-edge hover:text-ink-2"
+            className={`transition hover:text-ink ${
+              reactions.userReaction === "bullish" ? "text-critical" : "text-ink-3"
             }`}
-            title="React Bullish"
+            title="Like trade"
           >
-            <span>🐂</span>
-            <span>{reactions.bullish}</span>
+            <HeartIcon
+              filled={reactions.userReaction === "bullish"}
+              className="w-5 h-5"
+            />
           </button>
 
-          {/* Reaction: Bearish */}
+          {/* Comment */}
           <button
             type="button"
-            onClick={() => handleReaction("bearish")}
-            disabled={reacting}
-            className={`flex items-center gap-1 rounded px-2 py-1 font-mono text-xs border transition ${
-              reactions.userReaction === "bearish"
-                ? "border-critical/50 bg-critical/20 text-critical font-semibold"
-                : "border-rule bg-surface/80 text-ink-3 hover:border-edge hover:text-ink-2"
-            }`}
-            title="React Bearish"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-ink-3 hover:text-ink transition"
+            title="Takes & Comments"
           >
-            <span>🐻</span>
-            <span>{reactions.bearish}</span>
+            <CommentIcon className="w-5 h-5" />
           </button>
 
-          {/* Reaction: Echoed */}
+          {/* Share */}
+          <button
+            type="button"
+            onClick={handleShare}
+            className="text-ink-3 hover:text-ink transition"
+            title="Share"
+          >
+            <ShareIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Echo / Repost */}
           <button
             type="button"
             onClick={() => handleReaction("echoed")}
             disabled={reacting}
-            className={`flex items-center gap-1 rounded px-2 py-1 font-mono text-xs border transition ${
-              reactions.userReaction === "echoed"
-                ? "border-accent/50 bg-accent/20 text-accent font-semibold"
-                : "border-rule bg-surface/80 text-ink-3 hover:border-edge hover:text-ink-2"
+            className={`transition hover:text-ink ${
+              reactions.userReaction === "echoed" ? "text-accent" : "text-ink-3"
             }`}
             title="Mark as Echoed"
           >
-            <span>🎯</span>
-            <span>{reactions.echoed}</span>
+            <EchoIcon className="w-5 h-5" />
           </button>
 
-          {/* Comments toggle */}
+          {/* Bookmark */}
           <button
             type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className={`flex items-center gap-1.5 rounded px-2.5 py-1 font-mono text-xs border transition ${
-              isExpanded || commentCount > 0
-                ? "border-edge bg-surface-raised text-ink font-medium"
-                : "border-rule bg-surface/80 text-ink-3 hover:border-edge hover:text-ink-2"
+            onClick={() => handleReaction("bearish")}
+            disabled={reacting}
+            className={`transition hover:text-ink ${
+              reactions.userReaction === "bearish" ? "text-warning" : "text-ink-3"
             }`}
+            title="Save / Bookmark"
           >
-            <span>💬</span>
-            <span>{commentCount}</span>
-            <span className="text-[10px] text-ink-3">{isExpanded ? "▲" : "▼"}</span>
+            <BookmarkIcon
+              filled={reactions.userReaction === "bearish"}
+              className="w-5 h-5"
+            />
           </button>
         </div>
       </div>
 
-      {/* Expanded Discussion Thread */}
-      {isExpanded && (
+      {/* 5. Likes and Counter Line (Matching screenshot) */}
+      <div className="flex items-center justify-between text-xs pt-0.5">
+        <span className="font-semibold text-ink">
+          {totalLikes} {totalLikes === 1 ? "like" : "likes"}
+        </span>
+        <span className="text-ink-3 font-mono text-[11px]">
+          {commentCount} {commentCount === 1 ? "comment" : "comments"} ·{" "}
+          {trade.echoCount} {trade.echoCount === 1 ? "repost" : "reposts"}
+        </span>
+      </div>
+
+      {/* 6. Quick Comment Input / Toggle Pill */}
+      {!isExpanded ? (
+        <div
+          onClick={() => setIsExpanded(true)}
+          className="rounded-lg border border-rule/80 bg-surface-raised/40 px-3.5 py-2 text-xs text-ink-3 cursor-pointer hover:border-edge transition flex items-center justify-between"
+        >
+          <span>Add a comment…</span>
+          <span className="text-[10px] font-mono text-ink-3">↵</span>
+        </div>
+      ) : (
         <TradeCommentsThread
           decisionId={trade.id}
           traderAddress={trade.traderAddress}
