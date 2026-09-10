@@ -176,14 +176,17 @@ html {
 }
 
 /*
- * The landing nav revealing past the hero deliberately has NO entrance animation.
+ * A rule for the nav pill's animations, kept after a wrong diagnosis was corrected.
  *
- * It had a 200ms translateY slide. An animation that starts off-screen makes the element's
- * visibility depend on that animation finishing, and when it doesn't the nav is stranded
- * where nobody can reach it. That is not hypothetical: in a throttled tab the animation
- * clock never advanced past 0, and the header sat at translateY(-100%) indefinitely while
- * reporting itself as fixed at top:0.
+ * An earlier slide here was removed on the grounds that its animation clock had been observed
+ * stuck at 0, leaving the header at translateY(-100%). That observation was real but the
+ * conclusion was not: the page was in a preview pane that had stopped painting, which
+ * suspends animation clocks and IntersectionObservers alike. It was not evidence of a
+ * throttled-tab failure in a real browser.
  *
- * The nav's resting state is now simply correct, with nothing to complete before it can be
- * seen. Any reveal animation added here must animate a property that cannot hide it.
+ * The rule that came out of it is still worth keeping, on its own merits rather than on that
+ * evidence: an element whose ONLY path to being visible is an animation completing has a
+ * failure mode where it is unreachable. So the pill and its menu animate from resting states
+ * that are already correct — closed is genuinely hidden, open is genuinely visible — and if
+ * no transition ever runs they simply snap instead of disappearing.
  */

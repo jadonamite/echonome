@@ -8,7 +8,7 @@ import {
 } from "@/lib/queries";
 import { ReliabilityDiagram } from "@/components/reliability-diagram";
 import { LandingNav } from "@/components/site/landing-nav";
-import { TraderTiles } from "@/components/site/trader-tiles";
+import { TraderTilesRow, TraderTilesScatter } from "@/components/site/trader-tiles";
 import { TopTraders } from "@/components/site/top-traders";
 import { SiteFooter } from "@/components/site/footer";
 import { formatBrier } from "@/lib/format";
@@ -70,14 +70,10 @@ function Hero({
   traces: Awaited<ReturnType<typeof getRecentTraces>>;
 }) {
   return (
-    // data-hero is read by LandingNav, which reveals itself once this section has scrolled
-    // past. A marker rather than a scroll offset: the hero's height changes with viewport and
-    // content, and a hardcoded number would drift out of step with it silently.
     <section
-      data-hero
       className="relative mx-auto w-full max-w-7xl px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
     >
-      <TraderTiles traders={traders} traces={traces} />
+      <TraderTilesScatter traders={traders} traces={traces} />
 
       {/* The reference centres its type in a narrow column and lets the tiles hold the
           outer thirds of the canvas. The max-width here is what keeps the headline from
@@ -108,6 +104,10 @@ function Hero({
           </a>
         </div>
       </div>
+
+      {/* Below lg only. Deliberately after the call to action: the headline is what the page
+          is about, and a phone should open on it rather than on a strip of tiles. */}
+      <TraderTilesRow traders={traders} traces={traces} />
     </section>
   );
 }

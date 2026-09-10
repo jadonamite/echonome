@@ -135,16 +135,23 @@ function Tile({
   );
 }
 
-export function TraderTiles({
+/**
+ * Split into two exports on purpose, because the two layouts belong in different places in the
+ * hero's markup.
+ *
+ * The scatter is absolutely positioned and can be rendered anywhere inside the hero. The row
+ * is in normal flow, and when both lived in one component rendered above the headline, the row
+ * appeared ABOVE it on mobile — so a phone opened the page on a strip of half-cut cards
+ * instead of the sentence the page is about. Its own comment always said "under the call to
+ * action"; now the markup can actually put it there.
+ */
+export function TraderTilesScatter({
   traders,
   traces,
 }: {
   traders: LeaderboardEntry[];
   traces: Map<string, TraceTick[]>;
 }) {
-  // Fewer than five traders is normal early on, so the tile set is whatever exists rather than
-  // a fixed five with placeholders in the gaps. A tile standing for nobody would be the one
-  // piece of art on this page that is not a real record.
   const tiles = traders.slice(0, PLACEMENTS.length);
   if (tiles.length === 0) return null;
 
@@ -183,23 +190,45 @@ export function TraderTiles({
         })}
       </div>
 
-      {/* Below lg: a scrolling row under the call to action. */}
-      <div className="-mx-6 mt-14 flex gap-4 overflow-x-auto px-6 pb-4 lg:hidden">
-        {tiles.map((entry, i) => (
-          <div
-            key={entry.id}
-            className="h-40 w-40 shrink-0 rounded-tile"
-            style={{ boxShadow: "0 18px 34px -18px rgba(0,0,0,0.3)" }}
-          >
-            <Tile
-              entry={entry}
-              ticks={traces.get(entry.id) ?? []}
-              tone={PLACEMENTS[i].tone}
-              compact={false}
-            />
-          </div>
-        ))}
-      </div>
     </>
+  );
+}
+
+/**
+ * Below lg: a scrolling row, rendered under the call to action.
+ *
+ * `snap-x snap-mandatory` with `snap-start` on each tile so a swipe settles on a whole card
+ * rather than leaving one sliced down the middle — a half-tile at the edge reads as broken
+ * layout, where a cleanly-aligned one reads as a gallery you can push. The negative margin
+ * with matching padding lets the row bleed to both screen edges while its first and last
+ * tiles still align with the page's text column.
+ */
+export function TraderTilesRow({
+  traders,
+  traces,
+}: {
+  traders: LeaderboardEntry[];
+  traces: Map<string, TraceTick[]>;
+}) {
+  const tiles = traders.slice(0, PLACEMENTS.length);
+  if (tiles.length === 0) return null;
+
+  return (
+    <div className="-mx-6 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 sm:-mx-10 sm:px-10 lg:hidden">
+      {tiles.map((entry, i) => (
+        <div
+          key={entry.id}
+          className="h-44 w-44 shrink-0 snap-start rounded-tile"
+          style={{ boxShadow: "0 18px 34px -18px rgba(0,0,0,0.3)" }}
+        >
+          <Tile
+            entry={entry}
+            ticks={traces.get(entry.id) ?? []}
+            tone={PLACEMENTS[i].tone}
+            compact={false}
+          />
+        </div>
+      ))}
+    </div>
   );
 }
