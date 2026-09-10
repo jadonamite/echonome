@@ -3,6 +3,7 @@ import { MIN_CALIBRATION_SAMPLE } from "@echonome/shared";
 import { getLeaderboard, getRecentTraces, type LeaderboardEntry } from "@/lib/queries";
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
 import { LiveRefresh } from "@/components/live-refresh";
+import { TraderAvatar } from "@/components/site/trader-avatar";
 import { traderIdentity } from "@/lib/trader-names";
 import {
   edgeVerdict,
@@ -117,6 +118,7 @@ function TraderRow({
               <span className="w-6 font-mono text-sm text-ink-3 tnum">
                 {rank === null ? "—" : rank}
               </span>
+              <TraderAvatar address={entry.address} name={traderIdentity(entry.label).name} size={28} />
               <span className="truncate font-medium text-ink">{traderIdentity(entry.label).name}</span>
               {entry.isSeed && (
                 <span className="border border-edge px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ink-3">
@@ -124,7 +126,7 @@ function TraderRow({
                 </span>
               )}
             </div>
-            <p className="pl-9 font-mono text-xs text-ink-3 tnum">
+            <p className="pl-[4.25rem] font-mono text-xs text-ink-3 tnum">
               {/* The strategy handle stays on the row. ec-coinflip is the control that proves
                   the ranking has teeth, and a random baseline shown only as a person would be
                   the one misleading thing on this page. */}

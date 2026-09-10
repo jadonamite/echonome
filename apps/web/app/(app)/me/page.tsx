@@ -8,6 +8,7 @@ import type { EchoView, CopyLinkView } from "@/lib/queries";
 import { AccountPanel } from "@/components/account-panel";
 import { shortMarket, sideLabel, timeAgo } from "@/lib/format";
 import { traderName } from "@/lib/trader-names";
+import { TraderAvatar } from "@/components/site/trader-avatar";
 
 /**
  * What a follower actually needs to see: what was placed for them, how it turned out in
@@ -135,22 +136,25 @@ export default function MePage() {
                 key={link.id}
                 className="flex flex-wrap items-center justify-between gap-4 bg-surface px-5 py-4"
               >
-                <div>
-                  <Link
-                    href={`/traders/${link.traderId}`}
-                    className="text-sm text-ink underline-offset-4 hover:underline"
-                  >
-                    {traderName(link.traderLabel)}
-                  </Link>
-                  <p className="mt-0.5 text-xs text-ink-3">
-                    {Math.round(link.sizeFraction * 100)}% of their size ·{" "}
-                    {link.echoCount} {link.echoCount === 1 ? "echo" : "echoes"} placed ·{" "}
-                    {link.active ? (
-                      <span className="text-good">active</span>
-                    ) : (
-                      <span className="text-ink-3">paused</span>
-                    )}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <TraderAvatar address={link.traderId} name={traderName(link.traderLabel)} size={36} />
+                  <div>
+                    <Link
+                      href={`/traders/${link.traderId}`}
+                      className="text-sm font-medium text-ink hover:underline"
+                    >
+                      {traderName(link.traderLabel)}
+                    </Link>
+                    <p className="mt-0.5 text-xs text-ink-3">
+                      {Math.round(link.sizeFraction * 100)}% of their size ·{" "}
+                      {link.echoCount} {link.echoCount === 1 ? "echo" : "echoes"} placed ·{" "}
+                      {link.active ? (
+                        <span className="text-good">active</span>
+                      ) : (
+                        <span className="text-ink-3">paused</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"

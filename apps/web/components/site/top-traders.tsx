@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { LeaderboardEntry, ReliabilityBucket } from "@/lib/queries";
 import { traderName } from "@/lib/trader-names";
+import { TraderAvatar } from "./trader-avatar";
 
 /**
  * The three-card row that opens the dark act, built to the proportions in
@@ -171,10 +172,13 @@ export function TopTraders({ traders }: { traders: LeaderboardEntry[] }) {
                   )}
                 </div>
 
-                <div className="px-2 pb-3 pt-4 text-center">
-                  <p className="text-lg font-semibold tracking-tight">
-                    {traderName(entry.label)}
-                  </p>
+                <div className="px-2 pb-3 pt-4 text-center flex flex-col items-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <TraderAvatar address={entry.address} name={traderName(entry.label)} size={28} />
+                    <p className="text-lg font-semibold tracking-tight">
+                      {traderName(entry.label)}
+                    </p>
+                  </div>
                   <p className="mt-1.5 flex items-center justify-center gap-1.5 font-mono text-[11px] tabular-nums text-ink-3">
                     <span
                       aria-hidden

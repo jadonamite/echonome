@@ -56,10 +56,35 @@ function initialsOf(name: string): string {
 import Image from "next/image";
 
 const AVATARS: Record<string, string> = {
-  "Alex Mensah": "/avatars/Alex.jpeg",
-  "Arnold Whitfield": "/avatars/Arnold.jpeg",
-  "Ifeoma Balogun": "/avatars/Ifeoma.jpeg",
+  "tokunbo adeyemi": "/avatars/Adeyemi.jpeg",
+  "adeyemi": "/avatars/Adeyemi.jpeg",
+  "ec-maker": "/avatars/Adeyemi.jpeg",
+
+  "emeka okafor": "/avatars/Emeka.jpeg",
+  "emeka": "/avatars/Emeka.jpeg",
+  "ec-oracle-follow": "/avatars/Emeka.jpeg",
+
+  "alex mensah": "/avatars/Alex.jpeg",
+  "alex": "/avatars/Alex.jpeg",
+  "ec-coinflip": "/avatars/Alex.jpeg",
+
+  "arnold whitfield": "/avatars/Arnold.jpeg",
+  "arnold": "/avatars/Arnold.jpeg",
+  "ec-longshot": "/avatars/Arnold.jpeg",
+
+  "ifeoma balogun": "/avatars/Ifeoma.jpeg",
+  "ifeoma": "/avatars/Ifeoma.jpeg",
+  "ec-favourite": "/avatars/Ifeoma.jpeg",
 };
+
+function getAvatarImage(name: string): string | null {
+  const lower = name.toLowerCase().trim();
+  if (AVATARS[lower]) return AVATARS[lower];
+  for (const [key, url] of Object.entries(AVATARS)) {
+    if (lower.includes(key)) return url;
+  }
+  return null;
+}
 
 export function TraderAvatar({
   address,
@@ -74,7 +99,7 @@ export function TraderAvatar({
   size?: number;
   className?: string;
 }) {
-  const customImg = AVATARS[name];
+  const customImg = getAvatarImage(name);
   if (customImg) {
     return (
       <span
