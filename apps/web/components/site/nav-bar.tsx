@@ -40,8 +40,13 @@ export function NavBar({
    * near-black; `pill` is the floating glass form. Naming the SURFACE rather than a style
    * variant is what stops a black mark being rendered onto a black header — which is exactly
    * what happened when the app layout first adopted this component.
+   *
+   * `pill-light` is the same floating form with dark inks, for while it still floats over the
+   * landing page's light act. A white mark and white labels on a pale ground are legible only
+   * by the blur behind them, which is not legibility — so the pill carries the ground's inks
+   * and swaps them when the ground changes.
    */
-  surface?: "light" | "dark" | "pill";
+  surface?: "light" | "dark" | "pill" | "pill-light";
   /** The right-hand slot: a wallet connector on app pages, a link on the landing page. */
   action: React.ReactNode;
   logoHeight?: number;
@@ -49,8 +54,8 @@ export function NavBar({
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  const onDark = surface !== "light";
-  const isPill = surface === "pill";
+  const onDark = surface === "dark" || surface === "pill";
+  const isPill = surface === "pill" || surface === "pill-light";
 
   // Escape and outside-click, both expected of anything that opens over the page.
   useEffect(() => {
@@ -75,9 +80,11 @@ export function NavBar({
     <div ref={root} className="relative">
       <div
         className={
-          isPill
-            ? "relative flex items-center justify-between gap-3 rounded-full border border-white/15 bg-tile-ink/95 px-4 py-2 shadow-[0_10px_36px_-12px_rgba(0,0,0,0.45)] supports-[backdrop-filter]:bg-tile-ink/65 supports-[backdrop-filter]:backdrop-blur-xl sm:px-6"
-            : "relative flex items-center justify-between gap-3"
+          !isPill
+            ? "relative flex items-center justify-between gap-3"
+            : onDark
+              ? "relative flex items-center justify-between gap-3 rounded-full border border-white/15 bg-tile-ink/95 px-4 py-2 shadow-[0_10px_36px_-12px_rgba(0,0,0,0.45)] supports-[backdrop-filter]:bg-tile-ink/65 supports-[backdrop-filter]:backdrop-blur-xl sm:px-6 motion-safe:transition-colors motion-safe:duration-300"
+              : "relative flex items-center justify-between gap-3 rounded-full border border-black/10 bg-plane/95 px-4 py-2 shadow-[0_10px_36px_-12px_rgba(0,0,0,0.22)] supports-[backdrop-filter]:bg-plane/70 supports-[backdrop-filter]:backdrop-blur-xl sm:px-6 motion-safe:transition-colors motion-safe:duration-300"
         }
       >
         {/* Left: links from md up, the toggle below it. */}

@@ -29,9 +29,15 @@ export function WalletButton() {
           // Fully rounded, matching the Connect wallet button on the landing page. These are the
           // same action in two places and were drawn as two different shapes: square-cornered
           // here, pill-shaped there.
-          className="rounded-full border border-edge px-4 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-50"
+          className="whitespace-nowrap rounded-full border border-edge px-4 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-50"
         >
-          {isPending ? "Check your wallet…" : "Connect wallet"}
+          {/* Shortened below md for the same reason as the landing page's button: the mark is
+              centred against the bar and only reads as centred while the two sides balance. */}
+          {isPending ? (
+            <>Checking<span className="hidden md:inline"> your wallet</span>…</>
+          ) : (
+            <>Connect<span className="hidden md:inline"> wallet</span></>
+          )}
         </button>
       </div>
     );
@@ -42,16 +48,21 @@ export function WalletButton() {
       <button
         type="button"
         onClick={() => switchChain({ chainId: somniaShannon.id })}
-        className="rounded-full border border-warning px-4 py-1.5 text-sm text-warning hover:bg-surface-raised"
+        className="whitespace-nowrap rounded-full border border-warning px-4 py-1.5 text-sm text-warning hover:bg-surface-raised"
       >
-        Switch to Somnia Shannon
+        {/* The full network name is 24 characters and swamped the bar on a phone. The short
+            form still says what the button does; the long one returns with the links at md. */}
+        Switch<span className="hidden md:inline"> to Somnia Shannon</span>
+        <span className="md:hidden"> network</span>
       </button>
     );
   }
 
   return (
     <div className="flex items-center gap-3">
-      <span className="font-mono text-sm text-ink-2 tnum">{shortAddress(address!)}</span>
+      <span className="whitespace-nowrap font-mono text-sm text-ink-2 tnum">
+        {shortAddress(address!)}
+      </span>
       <button
         type="button"
         onClick={() => disconnect()}

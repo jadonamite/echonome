@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { NavBar, type NavItem } from "./nav-bar";
 
+/**
+ * How far down the pill's lower edge sits: `top-3` (12px) plus its own height, rounded up.
+ * Used as the observer's top inset so the ink swaps when the ground beneath the PILL changes,
+ * not when the act leaves the viewport.
+ */
+const PILL_BAND_PX = 64;
+
 const LINKS: NavItem[] = [
   { href: "/echo-rank", label: "Echo Rank" },
   { href: "/#how", label: "How it works" },
@@ -24,6 +31,7 @@ const LINKS: NavItem[] = [
  */
 export function LandingNav() {
   const [revealed, setRevealed] = useState(false);
+  const [overLight, setOverLight] = useState(true);
   const sentinel = useRef<HTMLDivElement>(null);
 
   /**
@@ -50,6 +58,31 @@ export function LandingNav() {
     return () => observer.disconnect();
   }, []);
 
+  /**
+   * Which act the pill is currently floating over, so it can carry that act's inks.
+   *
+   * The page is two acts: a pale ground down to the end of the hero, then black for everything
+   * after it. A single dark pill was legible on the second and only just legible on the first,
+   * where white labels survived on the strength of the blur behind them rather than on
+   * contrast. So the pill reads what is underneath it and swaps.
+   *
+   * `rootMargin` is what makes this about the PILL rather than the viewport: shrinking the top
+   * of the root by the pill's own band means the light act stops "intersecting" at the moment
+   * its bottom edge passes under the pill, not when it leaves the screen entirely.
+   */
+  useEffect(() => {
+    const light = document.querySelector(".act-light");
+    if (!light) return;
+
+    const observer = new IntersectionObserver(([entry]) => setOverLight(entry.isIntersecting), {
+      rootMargin: `-${PILL_BAND_PX}px 0px 0px 0px`,
+      threshold: 0,
+    });
+
+    observer.observe(light);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <>
       <header className="relative z-20 w-full">
@@ -66,7 +99,11 @@ export function LandingNav() {
           {/* Same width as the nav it replaces, rather than hugging its own contents — a bar
               that shrinks to fit reads as a different object each time a label changes. */}
           <div className="mx-auto w-full max-w-7xl">
-            <NavBar links={LINKS} surface="pill" action={<ConnectLink onDark />} />
+            <NavBar
+              links={LINKS}
+              surface={overLight ? "pill-light" : "pill"}
+              action={<ConnectLink onDark={!overLight} />}
+            />
           </div>
         </div>
       )}
@@ -74,7 +111,16 @@ export function LandingNav() {
   );
 }
 
-/** `whitespace-nowrap` because at 375px this label wrapped and doubled the bar's height. */
+/**
+ * `whitespace-nowrap` because at 375px this label wrapped and doubled the bar's height.
+ *
+ * The label shortens below `md`, and that is a layout decision rather than a copy one. The mark
+ * is centred against the bar, so it only READS as centred when the two sides roughly balance.
+ * Below `md` the links are hidden and the left is a 40px toggle against a 120px button — the
+ * mark sits dead centre and looks wrong. "Connect" takes about fifty pixels out of the right
+ * and brings the two within sight of each other. From `md` the links return and carry the left
+ * on their own, so the full label comes back with them.
+ */
 function ConnectLink({ onDark = false }: { onDark?: boolean }) {
   return (
     <Link
@@ -83,7 +129,7 @@ function ConnectLink({ onDark = false }: { onDark?: boolean }) {
         onDark ? "bg-white text-tile-ink" : "bg-tile-ink text-white"
       }`}
     >
-      Connect wallet
+      Connect<span className="hidden md:inline"> wallet</span>
     </Link>
   );
 }
