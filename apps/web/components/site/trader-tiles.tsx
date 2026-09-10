@@ -77,31 +77,31 @@ function Tile({
   return (
     <Link
       href={`/traders/${entry.id}`}
-      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-2.5 md:p-3 lg:p-4 ${t.className}`}
+      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-2 md:p-3 lg:p-4 ${t.className}`}
     >
       {/*
-        The name and the figure appear from `md`, where a tile is at least 104px and has room
-        for them. Below that it is between 62 and 92 pixels across: a name would be two
-        truncated characters and the figure would crowd out the curve, so the face and the line
-        carry it — who, and how they are doing.
+        All four pieces at every size — face, name, figure, curve. The type scales instead of
+        the content disappearing: a card that shows only a face and a line on a phone is not
+        the card the desktop shows, and the phone tier is sized (96-124px) to carry the lot.
       */}
-      <div className="flex min-w-0 items-start gap-2.5">
-        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={26} />
-        <div className="hidden min-w-0 md:block">
-          <p className="truncate text-[9px] font-medium uppercase tracking-[0.14em] opacity-65 lg:text-[11px]">
+      <div className="flex min-w-0 items-start gap-1.5 md:gap-2.5">
+        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={22} className="md:hidden" />
+        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={26} className="hidden md:block" />
+        <div className="min-w-0">
+          <p className="truncate text-[8px] font-medium uppercase tracking-[0.14em] opacity-65 md:text-[9px] lg:text-[11px]">
             {entry.isSeed ? "Seed" : "Trader"}
           </p>
-          <p className="mt-0.5 truncate text-[12px] font-semibold leading-tight lg:text-sm">
+          <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight md:text-[12px] lg:text-sm">
             {traderName(entry.label)}
           </p>
         </div>
       </div>
 
       <div className="mt-2 lg:mt-3">
-                  <p className="mb-1.5 hidden font-mono text-[10px] tabular-nums opacity-80 md:block lg:mb-2 lg:text-[11px]">
+                  <p className="mb-1 truncate font-mono text-[8px] tabular-nums opacity-80 md:mb-1.5 md:text-[10px] lg:mb-2 lg:text-[11px]">
             {edgeLabel(entry)}
           </p>
-        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={22} />
+        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={18} />
       </div>
     </Link>
   );

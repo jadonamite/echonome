@@ -84,15 +84,15 @@ function Hero({
       // box — but a bleed that is allowed to extend the document scrolls the whole page
       // sideways on a phone. Clipping keeps the bleed and drops the 10px of overflow it
       // was causing at 375px.
-      className="relative mx-auto min-h-[34rem] w-full max-w-7xl overflow-hidden px-6 pb-24 pt-10 sm:min-h-[36rem] sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
+      className="relative mx-auto min-h-[38rem] w-full max-w-7xl overflow-hidden px-6 pb-24 pt-10 sm:min-h-[36rem] sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
     >
       <TraderTilesScatter traders={traders} traces={traces} />
 
       {/* The reference centres its type in a narrow column and lets the tiles hold the
           outer thirds of the canvas. The max-width here is what keeps the headline from
           running underneath them. */}
-      <div className="relative z-10 mx-auto max-w-[15rem] text-center sm:max-w-md lg:max-w-2xl">
-        <h1 className="mx-auto text-[clamp(2.25rem,6.2vw,4.5rem)] font-bold leading-[0.98] tracking-[-0.035em] text-ink">
+      <div className="relative z-10 mx-auto max-w-[13rem] text-center sm:max-w-md lg:max-w-2xl">
+        <h1 className="mx-auto text-[clamp(1.6rem,6.2vw,4.5rem)] font-bold leading-[1.02] tracking-[-0.035em] text-ink lg:leading-[0.98]">
           Copy the traders who are right when they say they are
         </h1>
 
