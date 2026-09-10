@@ -9,7 +9,7 @@ import { LogoLockup } from "@/components/site/logo";
  * with a border-bottom header is a landing page that cannot use a photograph.
  */
 const NAV = [
-  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/echo-rank", label: "Echo Rank" },
   { href: "/connect", label: "Connect" },
   { href: "/me", label: "My echoes" },
 ];
@@ -30,7 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/*
           Wraps rather than overflows. At 375px the single row needed ~492px — brand and nav
           at 339, the wallet button at 81, plus gap and padding — against 327 available, so
-          every /leaderboard, /connect and /me page scrolled sideways by 93px. The nav takes
+          every /echo-rank, /connect and /me page scrolled sideways by 93px. The nav takes
           its own line below sm; above it, nothing about the layout changes.
         */}
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4">

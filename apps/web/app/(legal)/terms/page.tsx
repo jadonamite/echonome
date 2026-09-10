@@ -69,7 +69,7 @@ export default function TermsPage() {
 
       <h2>Traders we operate</h2>
       <p>
-        Some traders on the leaderboard are strategies we run ourselves. They are labelled as
+        Some traders on the Echo Rank are strategies we run ourselves. They are labelled as
         such wherever they appear, they trade with real funds at real risk, and they are scored
         by the same calculation as every other trader with no adjustment in their favour. We do
         not remove a trader of ours from the board for performing badly.

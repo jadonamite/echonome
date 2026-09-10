@@ -26,7 +26,10 @@ export function WalletButton() {
           type="button"
           onClick={() => injected && connect({ connector: injected })}
           disabled={!injected || isPending}
-          className="border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-50"
+          // Fully rounded, matching the Connect wallet button on the landing page. These are the
+          // same action in two places and were drawn as two different shapes: square-cornered
+          // here, pill-shaped there.
+          className="rounded-full border border-edge px-4 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-50"
         >
           {isPending ? "Check your wallet…" : "Connect wallet"}
         </button>
@@ -39,7 +42,7 @@ export function WalletButton() {
       <button
         type="button"
         onClick={() => switchChain({ chainId: somniaShannon.id })}
-        className="border border-warning px-3 py-1.5 text-sm text-warning hover:bg-surface-raised"
+        className="rounded-full border border-warning px-4 py-1.5 text-sm text-warning hover:bg-surface-raised"
       >
         Switch to Somnia Shannon
       </button>

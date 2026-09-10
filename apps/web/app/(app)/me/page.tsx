@@ -122,8 +122,8 @@ export default function MePage() {
         ) : copyLinks.length === 0 ? (
           <Panel title="You aren't copying anyone yet">
             Pick a trader from the{" "}
-            <Link href="/" className="text-ink underline underline-offset-4">
-              leaderboard
+            <Link href="/echo-rank" className="text-ink underline underline-offset-4">
+              Echo Rank
             </Link>{" "}
             and choose what share of their size to copy.
           </Panel>

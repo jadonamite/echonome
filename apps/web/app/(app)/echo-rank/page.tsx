@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MIN_CALIBRATION_SAMPLE } from "@echonome/shared";
 import { getLeaderboard, getRecentTraces, type LeaderboardEntry } from "@/lib/queries";
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
+import { LiveRefresh } from "@/components/live-refresh";
 import {
   edgeVerdict,
   formatBrier,
@@ -10,7 +11,7 @@ import {
   timeAgo,
 } from "@/lib/format";
 
-// Live data — never cached. The leaderboard's whole claim is that it reflects what
+// Live data — never cached. The Echo Rank's whole claim is that it reflects what
 // these wallets are doing right now on chain.
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="space-y-10">
+      <LiveRefresh />
+
       <section className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight">Ranked by edge</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-ink-2">
@@ -206,7 +209,7 @@ function EmptyLeaderboard() {
         Nothing has been recorded against this database. The worker
         (<span className="font-mono text-xs">apps/worker</span>) is what discovers traders
         and records their calls — if it isn&apos;t running, or isn&apos;t pointed at this
-        database, the leaderboard is empty rather than stale.
+        database, the Echo Rank is empty rather than stale.
       </p>
     </div>
   );

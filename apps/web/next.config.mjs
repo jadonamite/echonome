@@ -9,6 +9,13 @@ const nextConfig = {
   // RPC transport doesn't survive Next's server bundling. Only lib/markets.ts (server-side
   // market labels) depends on this; lib/somnia.ts builds its exchange in the browser.
   serverExternalPackages: ["@somnia-chain/markets-sdk"],
+
+  // The ranking moved from /leaderboard to /echo-rank. Permanent, because the old path is in
+  // the README, in DEPLOYMENT.md and in whatever anyone has already bookmarked or shared, and
+  // a submission that 404s a link printed in its own documentation is worse than a redirect.
+  async redirects() {
+    return [{ source: "/leaderboard", destination: "/echo-rank", permanent: true }];
+  },
 };
 
 export default nextConfig;

@@ -91,10 +91,10 @@ function Hero({
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/leaderboard"
+            href="/echo-rank"
             className="rounded-full bg-tile-ink px-7 py-3.5 text-sm font-medium text-white transition-opacity hover:opacity-85"
           >
-            See the leaderboard
+            See the Echo Rank
           </Link>
           <a
             href="#custody"
@@ -284,7 +284,7 @@ function HighlightPanel({
 
           <p className="mt-5 max-w-prose text-base leading-relaxed text-ink-2">
             We show you this because the single number that hid it is the number every other
-            leaderboard puts on its front page.
+            ranking puts on its front page.
           </p>
 
           <Link
@@ -421,7 +421,7 @@ const STEPS = [
   },
   {
     title: "Pick a trader",
-    body: "Choose from the leaderboard and set the fraction of their size you want to take. A trader below twenty resolved decisions is shown warming up, not ranked.",
+    body: "Choose from the Echo Rank and set the fraction of their size you want to take. A trader below twenty resolved decisions is shown warming up, not ranked.",
   },
   {
     title: "Watch the echoes settle",
@@ -459,7 +459,7 @@ function SeedTraders() {
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <p className="max-w-prose text-base leading-relaxed text-ink-2">
           The board launched with strategies we run ourselves. A calibration score needs
-          resolved decisions before it means anything, and an empty leaderboard has none, so we
+          resolved decisions before it means anything, and an empty Echo Rank has none, so we
           supplied the first ones rather than waiting or faking them.
         </p>
         <p className="max-w-prose text-base leading-relaxed text-ink-2">
@@ -494,10 +494,10 @@ function Risk() {
 
       <div className="mt-12 flex flex-wrap gap-3">
         <Link
-          href="/leaderboard"
+          href="/echo-rank"
           className="rounded-full bg-ink px-7 py-3.5 text-sm font-medium text-plane transition-opacity hover:opacity-90"
         >
-          See the leaderboard
+          See the Echo Rank
         </Link>
         <Link
           href="/terms"

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { LogoIcon } from "./logo";
 
 const LINKS = [
-  { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/echo-rank", label: "Echo Rank" },
   { href: "/#how", label: "How it works" },
   { href: "/#custody", label: "Custody" },
   { href: "/#risk", label: "Risk" },
@@ -85,21 +85,28 @@ export function LandingNav() {
 
   return (
     <>
+      {/*
+        Three columns rather than a flex row, so the logo is centred against the VIEWPORT and
+        not against whatever the links happen to measure. With `justify-between` the mark drifts
+        left or right every time a link label changes length; equal thirds hold it still.
+      */}
       <header className="relative z-20 w-full">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-6 px-6 py-6 sm:px-10">
-          <Link href="/" aria-label="Echonome home" className="shrink-0">
-            <LogoIcon variant="black" height={32} priority />
-          </Link>
-
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-6 px-6 py-6 sm:px-10">
           <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
             {LINKS.map((link) => (
               <NavLink key={link.href} href={link.href} label={link.label} pathname={pathname} />
             ))}
           </nav>
+          {/* Holds the centre column when the links are hidden below md. */}
+          <span className="md:hidden" />
+
+          <Link href="/" aria-label="Echonome home" className="justify-self-center">
+            <LogoIcon variant="black" height={32} priority />
+          </Link>
 
           <Link
             href="/connect"
-            className="ml-auto rounded-full bg-tile-ink px-5 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-85"
+            className="justify-self-end rounded-full bg-tile-ink px-5 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-85"
           >
             Connect wallet
           </Link>
@@ -113,16 +120,16 @@ export function LandingNav() {
         <div className="fixed inset-x-0 top-3 z-40 flex justify-center px-4 sm:top-4">
           <div ref={pill} className="relative">
             {/*
-              The glass: a translucent ground with a blur behind it. `supports-[backdrop-filter]`
-              keeps the fallback honest — where the blur is unavailable the ground goes nearly
-              opaque instead, because a 60%-transparent bar over scrolling text and no blur is
-              unreadable rather than merely less pretty.
-            */}
-            <div className="flex items-center gap-4 rounded-full border border-black/10 bg-plane/90 px-4 py-2 shadow-[0_10px_36px_-12px_rgba(0,0,0,0.28)] supports-[backdrop-filter]:bg-plane/60 supports-[backdrop-filter]:backdrop-blur-xl sm:gap-7 sm:px-5">
-              <Link href="/" aria-label="Echonome home" className="shrink-0">
-                <LogoIcon variant="black" height={26} />
-              </Link>
+              Dark glass, and it has to be dark: the pill carries a white mark, white link
+              hovers and a white button, none of which survive a light ground. Being dark also
+              means one treatment works over both acts of the page — a light pill would vanish
+              the moment it crossed onto the black half.
 
+              `supports-[backdrop-filter]` keeps the fallback honest: without the blur the
+              ground goes nearly opaque, because a 65%-transparent bar over scrolling text and
+              no blur is unreadable rather than merely less pretty.
+            */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 rounded-full border border-white/15 bg-tile-ink/95 px-4 py-2 shadow-[0_10px_36px_-12px_rgba(0,0,0,0.45)] supports-[backdrop-filter]:bg-tile-ink/65 supports-[backdrop-filter]:backdrop-blur-xl sm:gap-7 sm:px-5">
               <nav aria-label="Sections" className="hidden items-center gap-7 md:flex">
                 {LINKS.map((link) => (
                   <NavLink
@@ -130,18 +137,26 @@ export function LandingNav() {
                     href={link.href}
                     label={link.label}
                     pathname={pathname}
+                    onDark
                   />
                 ))}
               </nav>
+              <span className="md:hidden" />
 
-              <Link
-                href="/connect"
-                className="shrink-0 rounded-full bg-tile-ink px-4 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-85"
-              >
-                Connect wallet
+              <Link href="/" aria-label="Echonome home" className="justify-self-center">
+                <LogoIcon variant="white" height={26} />
               </Link>
 
-              <MenuToggle open={menuOpen} onToggle={() => setMenuOpen((v) => !v)} />
+              <div className="flex items-center justify-self-end gap-1">
+                <Link
+                  href="/connect"
+                  className="shrink-0 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-tile-ink transition-opacity hover:opacity-85"
+                >
+                  Connect wallet
+                </Link>
+
+                <MenuToggle open={menuOpen} onToggle={() => setMenuOpen((v) => !v)} />
+              </div>
             </div>
 
             <MobileMenu open={menuOpen} pathname={pathname} onNavigate={() => setMenuOpen(false)} />
@@ -162,7 +177,7 @@ export function LandingNav() {
  */
 function MenuToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const bar =
-    "absolute left-1/2 h-[1.5px] w-[18px] -translate-x-1/2 rounded-full bg-ink motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out";
+    "absolute left-1/2 h-[1.5px] w-[18px] -translate-x-1/2 rounded-full bg-white motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out";
 
   return (
     <button
@@ -214,7 +229,7 @@ function MobileMenu({
   return (
     <div
       id="pill-menu"
-      className={`absolute right-0 top-[calc(100%+10px)] w-56 origin-top-right rounded-3xl border border-black/10 bg-plane/90 p-2 shadow-[0_16px_44px_-14px_rgba(0,0,0,0.3)] supports-[backdrop-filter]:bg-plane/70 supports-[backdrop-filter]:backdrop-blur-xl md:hidden motion-safe:transition-[opacity,transform,visibility] motion-safe:duration-200 motion-safe:ease-out ${
+      className={`absolute right-0 top-[calc(100%+10px)] w-56 origin-top-right rounded-3xl border border-white/15 bg-tile-ink/95 p-2 shadow-[0_16px_44px_-14px_rgba(0,0,0,0.45)] supports-[backdrop-filter]:bg-tile-ink/80 supports-[backdrop-filter]:backdrop-blur-xl md:hidden motion-safe:transition-[opacity,transform,visibility] motion-safe:duration-200 motion-safe:ease-out ${
         open ? "visible scale-100 opacity-100" : "invisible scale-75 opacity-0"
       }`}
       aria-hidden={!open}
@@ -233,7 +248,7 @@ function MobileMenu({
               }}
               className={`flex min-h-[44px] items-center rounded-2xl px-4 text-sm font-medium motion-safe:transition-[opacity,transform] motion-safe:duration-200 ${
                 open ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
-              } ${active ? "text-accent" : "text-ink-2 hover:bg-black/5 hover:text-ink"}`}
+              } ${active ? "text-accent" : "text-white/70 hover:bg-white/10 hover:text-white"}`}
             >
               {link.label}
             </Link>
@@ -244,24 +259,33 @@ function MobileMenu({
   );
 }
 
+/**
+ * `onDark` switches the resting and hover inks for the pill.
+ *
+ * On the light ground a link darkens toward `--ink` on hover; on the dark pill that would move
+ * it toward the background and read as the link fading out. There it lifts to white instead —
+ * the same gesture of "this one is live", pointed the other way.
+ */
 function NavLink({
   href,
   label,
   pathname,
+  onDark = false,
 }: {
   href: string;
   label: string;
   pathname: string;
+  onDark?: boolean;
 }) {
   const active = pathname === href;
+  const base = "text-[13px] font-medium transition-colors";
+
+  if (active) return <Link href={href} className={`${base} text-accent`}>{label}</Link>;
+
   return (
     <Link
       href={href}
-      className={
-        active
-          ? "text-[13px] font-medium text-accent"
-          : "text-[13px] font-medium text-ink-2 transition-colors hover:text-ink"
-      }
+      className={`${base} ${onDark ? "text-white/70 hover:text-white" : "text-ink-2 hover:text-ink"}`}
     >
       {label}
     </Link>

@@ -4,6 +4,7 @@ import { MIN_CALIBRATION_SAMPLE } from "@echonome/shared";
 import { getTraderDecisions, getTraderSummary } from "@/lib/queries";
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
 import { ReliabilityDiagram } from "@/components/reliability-diagram";
+import { LiveRefresh } from "@/components/live-refresh";
 import { CopyButton } from "./copy-button";
 import {
   brierVerdict,
@@ -33,9 +34,12 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-10">
+      {/* Chain data. Keeps the panels and the reliability plot current without a reload. */}
+      <LiveRefresh />
+
       <div>
         <Link href="/" className="text-xs text-ink-3 underline underline-offset-4 hover:text-ink-2">
-          ← Leaderboard
+          ← Echo Rank
         </Link>
       </div>
 
@@ -70,6 +74,7 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
           label="Brier score"
           value={formatBrier(trader.brierScore)}
           hint={brierVerdict(trader.brierScore)}
+          tone="accent"
         />
         <Panel
           label="Resolved calls"
@@ -188,11 +193,31 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
   );
 }
 
-function Panel({ label, value, hint }: { label: string; value: string; hint: string }) {
+/**
+ * `tone="accent"` ties a figure to the chart that explains it.
+ *
+ * The Brier score is drawn in the same ink as the marks on the reliability diagram below,
+ * because they are the same claim at two resolutions: the number is the summary, the plot is
+ * the breakdown that shows what the number hid. Sharing a colour is the cheapest way to say
+ * "these two are about each other" without a caption saying so.
+ */
+function Panel({
+  label,
+  value,
+  hint,
+  tone = "ink",
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone?: "ink" | "accent";
+}) {
   return (
     <div className="bg-surface px-5 py-4">
       <p className="text-[10px] uppercase tracking-wider text-ink-3">{label}</p>
-      <p className="mt-1 font-mono text-2xl text-ink tnum">{value}</p>
+      <p className={`mt-1 font-mono text-2xl tnum ${tone === "accent" ? "text-accent" : "text-ink"}`}>
+        {value}
+      </p>
       <p className="mt-1 text-xs text-ink-3">{hint}</p>
     </div>
   );
