@@ -3,7 +3,7 @@ import { toggleDecisionReaction, type ReactionType } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-const VALID_REACTIONS: ReactionType[] = ["bullish", "bearish", "echoed"];
+const VALID_REACTIONS: ReactionType[] = ["bullish", "bearish", "echoed", "like"];
 
 /**
  * POST /api/feed/[id]/reactions — toggle or update a sentiment reaction on a trade.

@@ -159,13 +159,18 @@ CREATE TABLE IF NOT EXISTS trade_comment (
 );
 CREATE INDEX IF NOT EXISTS trade_comment_decision_idx ON trade_comment (decision_id, created_at ASC);
 
--- Sentiment reactions (bullish, bearish, echoed) per wallet on a trade decision.
+-- Sentiment reactions (bullish, bearish, echoed, like) per wallet on a trade decision.
 CREATE TABLE IF NOT EXISTS trade_reaction (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   decision_id     uuid NOT NULL REFERENCES decision(id) ON DELETE CASCADE,
   wallet_address  text NOT NULL,
-  reaction        text NOT NULL CHECK (reaction IN ('bullish', 'bearish', 'echoed')),
+  reaction        text NOT NULL CHECK (reaction IN ('bullish', 'bearish', 'echoed', 'like')),
   created_at      timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS trade_reaction_decision_wallet_unique ON trade_reaction (decision_id, lower(wallet_address));
+ALTER TABLE trade_reaction DROP CONSTRAINT IF EXISTS trade_reaction_reaction_check;
+ALTER TABLE trade_reaction ADD CONSTRAINT trade_reaction_reaction_check CHECK (reaction IN ('bullish', 'bearish', 'echoed', 'like'));
+
+DROP INDEX IF EXISTS trade_reaction_decision_wallet_unique;
+CREATE UNIQUE INDEX IF NOT EXISTS trade_reaction_decision_wallet_type_unique ON trade_reaction (decision_id, lower(wallet_address), reaction);
+
 

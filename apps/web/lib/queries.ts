@@ -540,6 +540,7 @@ export interface FeedTrade {
   echoCount: number;
   commentCount: number;
   reactions: ReactionCounts;
+  edgeTrace: number[];
 }
 
 interface FeedTradeRow {
@@ -561,10 +562,14 @@ interface FeedTradeRow {
   resolved_at: Date | null;
   echo_count: string;
   comment_count: string;
+  reaction_likes: string;
   reaction_bullish: string;
   reaction_bearish: string;
   reaction_echoed: string;
-  user_reaction: ReactionType | null;
+  user_liked: boolean;
+  user_bullish: boolean;
+  user_bearish: boolean;
+  user_echoed: boolean;
 }
 
 export async function getFeedTrades(options?: {
@@ -623,12 +628,14 @@ export async function getFeedTrades(options?: {
       d.resolved_at,
       (SELECT count(*) FROM echo e WHERE e.source_decision_id = d.id)::text AS echo_count,
       (SELECT count(*) FROM trade_comment tc WHERE tc.decision_id = d.id)::text AS comment_count,
+      (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'like')::text AS reaction_likes,
       (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'bullish')::text AS reaction_bullish,
       (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'bearish')::text AS reaction_bearish,
       (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'echoed')::text AS reaction_echoed,
-      CASE WHEN $1::text IS NOT NULL THEN
-        (SELECT tr.reaction FROM trade_reaction tr WHERE tr.decision_id = d.id AND lower(tr.wallet_address) = $1 LIMIT 1)
-      ELSE NULL END AS user_reaction
+      EXISTS (SELECT 1 FROM trade_reaction tr WHERE tr.decision_id = d.id AND lower(tr.wallet_address) = $1 AND tr.reaction = 'like') AS user_liked,
+      EXISTS (SELECT 1 FROM trade_reaction tr WHERE tr.decision_id = d.id AND lower(tr.wallet_address) = $1 AND tr.reaction = 'bullish') AS user_bullish,
+      EXISTS (SELECT 1 FROM trade_reaction tr WHERE tr.decision_id = d.id AND lower(tr.wallet_address) = $1 AND tr.reaction = 'bearish') AS user_bearish,
+      EXISTS (SELECT 1 FROM trade_reaction tr WHERE tr.decision_id = d.id AND lower(tr.wallet_address) = $1 AND tr.reaction = 'echoed') AS user_echoed
     FROM decision d
     JOIN trader t ON t.id = d.trader_id
     LEFT JOIN calibration_score c ON c.trader_id = t.id
@@ -637,39 +644,57 @@ export async function getFeedTrades(options?: {
     LIMIT $${limitIndex} OFFSET $${offsetIndex}
   `;
 
-  const rows = await queryOrNull<FeedTradeRow>(sql, params);
+  const [rows, labels, traces] = await Promise.all([
+    queryOrNull<FeedTradeRow>(sql, params),
+    loadMarketLabels(),
+    getRecentTraces(20),
+  ]);
+
   if (!rows || rows.length === 0) return [];
 
-  const labels = await loadMarketLabels();
+  return rows.map((r) => {
+    const traderTicks = traces.get(r.trader_id) ?? [];
+    let running = 0;
+    const edgeTrace = traderTicks
+      .filter((t) => t.wasRight !== null)
+      .map((t) => {
+        running += (t.wasRight ? 1 : 0) - t.pricePaid;
+        return running;
+      });
 
-  return rows.map((r) => ({
-    id: r.id,
-    traderId: r.trader_id,
-    traderAddress: r.trader_address,
-    traderLabel: r.trader_label,
-    traderIsSeed: r.trader_is_seed,
-    traderEdge: r.trader_edge === null ? null : Number(r.trader_edge),
-    traderEdgeLower: r.trader_edge_lower === null ? null : Number(r.trader_edge_lower),
-    traderBrier: r.trader_brier === null ? null : Number(r.trader_brier),
-    traderSampleCount: Number(r.trader_sample_count ?? 0),
-    marketId: r.market_id,
-    marketLabel: describeMarket(labels.get(r.market_id)),
-    side: r.side,
-    impliedProbability: Number(r.implied_probability),
-    quantity: r.quantity === null ? null : Number(r.quantity),
-    settledOutcome: r.settled_outcome,
-    wasRight: r.settled_outcome === null ? null : r.side === r.settled_outcome,
-    createdAt: r.created_at.toISOString(),
-    resolvedAt: r.resolved_at?.toISOString() ?? null,
-    echoCount: Number(r.echo_count),
-    commentCount: Number(r.comment_count),
-    reactions: {
-      bullish: Number(r.reaction_bullish),
-      bearish: Number(r.reaction_bearish),
-      echoed: Number(r.reaction_echoed),
-      userReaction: r.user_reaction,
-    },
-  }));
+    return {
+      id: r.id,
+      traderId: r.trader_id,
+      traderAddress: r.trader_address,
+      traderLabel: r.trader_label,
+      traderIsSeed: r.trader_is_seed,
+      traderEdge: r.trader_edge === null ? null : Number(r.trader_edge),
+      traderEdgeLower: r.trader_edge_lower === null ? null : Number(r.trader_edge_lower),
+      traderBrier: r.trader_brier === null ? null : Number(r.trader_brier),
+      traderSampleCount: Number(r.trader_sample_count ?? 0),
+      marketId: r.market_id,
+      marketLabel: describeMarket(labels.get(r.market_id)),
+      side: r.side,
+      impliedProbability: Number(r.implied_probability),
+      quantity: r.quantity === null ? null : Number(r.quantity),
+      settledOutcome: r.settled_outcome,
+      wasRight: r.settled_outcome === null ? null : r.side === r.settled_outcome,
+      createdAt: r.created_at.toISOString(),
+      resolvedAt: r.resolved_at?.toISOString() ?? null,
+      echoCount: Number(r.echo_count),
+      commentCount: Number(r.comment_count),
+      reactions: {
+        like: Number(r.reaction_likes),
+        bullish: Number(r.reaction_bullish),
+        bearish: Number(r.reaction_bearish),
+        echoed: Number(r.reaction_echoed),
+        userLiked: Boolean(r.user_liked),
+        userReaction: r.user_bullish ? "bullish" : r.user_bearish ? "bearish" : null,
+        userEchoed: Boolean(r.user_echoed),
+      },
+      edgeTrace,
+    };
+  });
 }
 
 export async function getDecisionComments(decisionId: string): Promise<TradeComment[]> {
@@ -741,27 +766,28 @@ export async function toggleDecisionReaction({
   reaction: ReactionType;
 }): Promise<{ reactions: ReactionCounts }> {
   const normWallet = walletAddress.toLowerCase();
-  const existing = await queryOne<{ reaction: ReactionType }>(
-    `SELECT reaction FROM trade_reaction
-     WHERE decision_id = $1 AND lower(wallet_address) = $2`,
-    [decisionId, normWallet]
+
+  // If voting bullish or bearish, remove the opposing vote
+  if (reaction === "bullish" || reaction === "bearish") {
+    const opposite: ReactionType = reaction === "bullish" ? "bearish" : "bullish";
+    await query(
+      `DELETE FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = $3`,
+      [decisionId, normWallet, opposite]
+    );
+  }
+
+  const existing = await queryOne<{ id: string }>(
+    `SELECT id FROM trade_reaction
+     WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = $3`,
+    [decisionId, normWallet, reaction]
   );
 
   if (existing) {
-    if (existing.reaction === reaction) {
-      await query(
-        `DELETE FROM trade_reaction
-         WHERE decision_id = $1 AND lower(wallet_address) = $2`,
-        [decisionId, normWallet]
-      );
-    } else {
-      await query(
-        `UPDATE trade_reaction
-         SET reaction = $3, created_at = now()
-         WHERE decision_id = $1 AND lower(wallet_address) = $2`,
-        [decisionId, normWallet, reaction]
-      );
-    }
+    await query(
+      `DELETE FROM trade_reaction
+       WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = $3`,
+      [decisionId, normWallet, reaction]
+    );
   } else {
     await query(
       `INSERT INTO trade_reaction (decision_id, wallet_address, reaction)
@@ -771,25 +797,36 @@ export async function toggleDecisionReaction({
   }
 
   const summaryRow = await queryOne<{
+    likes: string;
     bullish: string;
     bearish: string;
     echoed: string;
-    user_reaction: ReactionType | null;
+    user_liked: boolean;
+    user_bullish: boolean;
+    user_bearish: boolean;
+    user_echoed: boolean;
   }>(
     `SELECT
+       (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'like')::text AS likes,
        (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'bullish')::text AS bullish,
        (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'bearish')::text AS bearish,
        (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'echoed')::text AS echoed,
-       (SELECT reaction FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 LIMIT 1) AS user_reaction`,
+       EXISTS (SELECT 1 FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = 'like') AS user_liked,
+       EXISTS (SELECT 1 FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = 'bullish') AS user_bullish,
+       EXISTS (SELECT 1 FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = 'bearish') AS user_bearish,
+       EXISTS (SELECT 1 FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 AND reaction = 'echoed') AS user_echoed`,
     [decisionId, normWallet]
   );
 
   return {
     reactions: {
+      like: Number(summaryRow?.likes ?? 0),
       bullish: Number(summaryRow?.bullish ?? 0),
       bearish: Number(summaryRow?.bearish ?? 0),
       echoed: Number(summaryRow?.echoed ?? 0),
-      userReaction: summaryRow?.user_reaction ?? null,
+      userLiked: Boolean(summaryRow?.user_liked),
+      userReaction: summaryRow?.user_bullish ? "bullish" : summaryRow?.user_bearish ? "bearish" : null,
+      userEchoed: Boolean(summaryRow?.user_echoed),
     },
   };
 }
