@@ -147,3 +147,25 @@ ALTER TABLE calibration_score ADD COLUMN IF NOT EXISTS edge_lower numeric;
 -- The column was NOT NULL because the only traders that existed when it was written already
 -- had history; registering a new trader before its first settled market broke the recompute.
 ALTER TABLE calibration_score ALTER COLUMN brier_score DROP NOT NULL;
+
+-- ── Social trade feed (2026-09-10) ─────────────────────────────────────────────────
+-- Comments and discussion on individual trading decisions.
+CREATE TABLE IF NOT EXISTS trade_comment (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  decision_id     uuid NOT NULL REFERENCES decision(id) ON DELETE CASCADE,
+  author_address  text NOT NULL,
+  content         text NOT NULL,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS trade_comment_decision_idx ON trade_comment (decision_id, created_at ASC);
+
+-- Sentiment reactions (bullish, bearish, echoed) per wallet on a trade decision.
+CREATE TABLE IF NOT EXISTS trade_reaction (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  decision_id     uuid NOT NULL REFERENCES decision(id) ON DELETE CASCADE,
+  wallet_address  text NOT NULL,
+  reaction        text NOT NULL CHECK (reaction IN ('bullish', 'bearish', 'echoed')),
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS trade_reaction_decision_wallet_unique ON trade_reaction (decision_id, lower(wallet_address));
+

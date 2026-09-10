@@ -1,10 +1,20 @@
 import { query, queryOne, queryOrNull } from "./db";
 import { describeMarket, loadMarketLabels } from "./markets";
-import { MIN_CALIBRATION_SAMPLE, type Side, type EchoStatus, type ReliabilityBucket } from "@echonome/shared";
+import {
+  MIN_CALIBRATION_SAMPLE,
+  type Side,
+  type EchoStatus,
+  type ReliabilityBucket,
+  type ReactionType,
+  type TradeComment,
+  type TradeReaction,
+  type ReactionCounts,
+} from "@echonome/shared";
 
 // Re-exported so landing components take their types from the same module they take their
 // data from, rather than reaching past it into the shared package.
-export type { ReliabilityBucket, Side, EchoStatus };
+export type { ReliabilityBucket, Side, EchoStatus, ReactionType, TradeComment, TradeReaction, ReactionCounts };
+
 
 /**
  * Every read this app performs, in one place. Both the API routes under `app/api/*`
@@ -503,3 +513,284 @@ export async function getCalibrationHighlight(): Promise<CalibrationHighlight | 
 
   return best;
 }
+
+// ── Social Trade Feed ─────────────────────────────────────────────────────────────
+
+export type FeedFilter = "all" | "top" | "following" | "discussions";
+
+export interface FeedTrade {
+  id: string;
+  traderId: string;
+  traderAddress: string;
+  traderLabel: string;
+  traderIsSeed: boolean;
+  traderEdge: number | null;
+  traderEdgeLower: number | null;
+  traderBrier: number | null;
+  traderSampleCount: number;
+  marketId: string;
+  marketLabel: string | null;
+  side: Side;
+  impliedProbability: number;
+  quantity: number | null;
+  settledOutcome: Side | null;
+  wasRight: boolean | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  echoCount: number;
+  commentCount: number;
+  reactions: ReactionCounts;
+}
+
+interface FeedTradeRow {
+  id: string;
+  trader_id: string;
+  trader_address: string;
+  trader_label: string;
+  trader_is_seed: boolean;
+  trader_edge: string | null;
+  trader_edge_lower: string | null;
+  trader_brier: string | null;
+  trader_sample_count: number | null;
+  market_id: string;
+  side: Side;
+  implied_probability: string;
+  quantity: string | null;
+  settled_outcome: Side | null;
+  created_at: Date;
+  resolved_at: Date | null;
+  echo_count: string;
+  comment_count: string;
+  reaction_bullish: string;
+  reaction_bearish: string;
+  reaction_echoed: string;
+  user_reaction: ReactionType | null;
+}
+
+export async function getFeedTrades(options?: {
+  filter?: FeedFilter;
+  limit?: number;
+  offset?: number;
+  viewerAddress?: string | null;
+}): Promise<FeedTrade[]> {
+  const filter = options?.filter ?? "all";
+  const limit = Math.min(options?.limit ?? 30, 100);
+  const offset = options?.offset ?? 0;
+  const viewer = options?.viewerAddress?.toLowerCase() ?? null;
+
+  const conditions: string[] = [];
+  const params: unknown[] = [viewer]; // $1 is always viewer address
+
+  if (filter === "top") {
+    conditions.push(`c.sample_count >= ${MIN_CALIBRATION_SAMPLE} AND c.edge_lower > 0`);
+  } else if (filter === "following") {
+    if (!viewer) return [];
+    conditions.push(`EXISTS (
+      SELECT 1 FROM copy_link cl
+      JOIN proxy_grant pg ON pg.id = cl.proxy_grant_id
+      WHERE cl.trader_id = d.trader_id
+        AND lower(pg.follower_address) = $1
+        AND cl.active = true
+    )`);
+  } else if (filter === "discussions") {
+    conditions.push(`EXISTS (SELECT 1 FROM trade_comment tc WHERE tc.decision_id = d.id)`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  params.push(limit);
+  const limitIndex = params.length;
+  params.push(offset);
+  const offsetIndex = params.length;
+
+  const sql = `
+    SELECT
+      d.id,
+      d.trader_id,
+      t.address AS trader_address,
+      t.label AS trader_label,
+      t.is_seed AS trader_is_seed,
+      c.edge AS trader_edge,
+      c.edge_lower AS trader_edge_lower,
+      c.brier_score AS trader_brier,
+      c.sample_count AS trader_sample_count,
+      d.market_id,
+      d.side,
+      d.implied_probability,
+      d.quantity,
+      d.settled_outcome,
+      d.created_at,
+      d.resolved_at,
+      (SELECT count(*) FROM echo e WHERE e.source_decision_id = d.id)::text AS echo_count,
+      (SELECT count(*) FROM trade_comment tc WHERE tc.decision_id = d.id)::text AS comment_count,
+      (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'bullish')::text AS reaction_bullish,
+      (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'bearish')::text AS reaction_bearish,
+      (SELECT count(*) FROM trade_reaction tr WHERE tr.decision_id = d.id AND tr.reaction = 'echoed')::text AS reaction_echoed,
+      CASE WHEN $1::text IS NOT NULL THEN
+        (SELECT tr.reaction FROM trade_reaction tr WHERE tr.decision_id = d.id AND lower(tr.wallet_address) = $1 LIMIT 1)
+      ELSE NULL END AS user_reaction
+    FROM decision d
+    JOIN trader t ON t.id = d.trader_id
+    LEFT JOIN calibration_score c ON c.trader_id = t.id
+    ${whereClause}
+    ORDER BY d.created_at DESC
+    LIMIT $${limitIndex} OFFSET $${offsetIndex}
+  `;
+
+  const rows = await queryOrNull<FeedTradeRow>(sql, params);
+  if (!rows || rows.length === 0) return [];
+
+  const labels = await loadMarketLabels();
+
+  return rows.map((r) => ({
+    id: r.id,
+    traderId: r.trader_id,
+    traderAddress: r.trader_address,
+    traderLabel: r.trader_label,
+    traderIsSeed: r.trader_is_seed,
+    traderEdge: r.trader_edge === null ? null : Number(r.trader_edge),
+    traderEdgeLower: r.trader_edge_lower === null ? null : Number(r.trader_edge_lower),
+    traderBrier: r.trader_brier === null ? null : Number(r.trader_brier),
+    traderSampleCount: Number(r.trader_sample_count ?? 0),
+    marketId: r.market_id,
+    marketLabel: describeMarket(labels.get(r.market_id)),
+    side: r.side,
+    impliedProbability: Number(r.implied_probability),
+    quantity: r.quantity === null ? null : Number(r.quantity),
+    settledOutcome: r.settled_outcome,
+    wasRight: r.settled_outcome === null ? null : r.side === r.settled_outcome,
+    createdAt: r.created_at.toISOString(),
+    resolvedAt: r.resolved_at?.toISOString() ?? null,
+    echoCount: Number(r.echo_count),
+    commentCount: Number(r.comment_count),
+    reactions: {
+      bullish: Number(r.reaction_bullish),
+      bearish: Number(r.reaction_bearish),
+      echoed: Number(r.reaction_echoed),
+      userReaction: r.user_reaction,
+    },
+  }));
+}
+
+export async function getDecisionComments(decisionId: string): Promise<TradeComment[]> {
+  const rows = await queryOrNull<{
+    id: string;
+    decision_id: string;
+    author_address: string;
+    content: string;
+    created_at: Date;
+  }>(
+    `SELECT id, decision_id, author_address, content, created_at
+     FROM trade_comment
+     WHERE decision_id = $1
+     ORDER BY created_at ASC`,
+    [decisionId]
+  );
+  if (!rows) return [];
+  return rows.map((r) => ({
+    id: r.id,
+    decisionId: r.decision_id,
+    authorAddress: r.author_address,
+    content: r.content,
+    createdAt: r.created_at.toISOString(),
+  }));
+}
+
+export async function addDecisionComment({
+  decisionId,
+  authorAddress,
+  content,
+}: {
+  decisionId: string;
+  authorAddress: string;
+  content: string;
+}): Promise<TradeComment> {
+  const trimmed = content.trim();
+  if (!trimmed) throw new Error("Comment cannot be empty");
+  if (trimmed.length > 1000) throw new Error("Comment exceeds 1000 characters");
+
+  const row = await queryOne<{
+    id: string;
+    decision_id: string;
+    author_address: string;
+    content: string;
+    created_at: Date;
+  }>(
+    `INSERT INTO trade_comment (decision_id, author_address, content)
+     VALUES ($1, $2, $3)
+     RETURNING id, decision_id, author_address, content, created_at`,
+    [decisionId, authorAddress, trimmed]
+  );
+  if (!row) throw new Error("Failed to insert comment");
+  return {
+    id: row.id,
+    decisionId: row.decision_id,
+    authorAddress: row.author_address,
+    content: row.content,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+export async function toggleDecisionReaction({
+  decisionId,
+  walletAddress,
+  reaction,
+}: {
+  decisionId: string;
+  walletAddress: string;
+  reaction: ReactionType;
+}): Promise<{ reactions: ReactionCounts }> {
+  const normWallet = walletAddress.toLowerCase();
+  const existing = await queryOne<{ reaction: ReactionType }>(
+    `SELECT reaction FROM trade_reaction
+     WHERE decision_id = $1 AND lower(wallet_address) = $2`,
+    [decisionId, normWallet]
+  );
+
+  if (existing) {
+    if (existing.reaction === reaction) {
+      await query(
+        `DELETE FROM trade_reaction
+         WHERE decision_id = $1 AND lower(wallet_address) = $2`,
+        [decisionId, normWallet]
+      );
+    } else {
+      await query(
+        `UPDATE trade_reaction
+         SET reaction = $3, created_at = now()
+         WHERE decision_id = $1 AND lower(wallet_address) = $2`,
+        [decisionId, normWallet, reaction]
+      );
+    }
+  } else {
+    await query(
+      `INSERT INTO trade_reaction (decision_id, wallet_address, reaction)
+       VALUES ($1, $2, $3)`,
+      [decisionId, normWallet, reaction]
+    );
+  }
+
+  const summaryRow = await queryOne<{
+    bullish: string;
+    bearish: string;
+    echoed: string;
+    user_reaction: ReactionType | null;
+  }>(
+    `SELECT
+       (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'bullish')::text AS bullish,
+       (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'bearish')::text AS bearish,
+       (SELECT count(*) FROM trade_reaction WHERE decision_id = $1 AND reaction = 'echoed')::text AS echoed,
+       (SELECT reaction FROM trade_reaction WHERE decision_id = $1 AND lower(wallet_address) = $2 LIMIT 1) AS user_reaction`,
+    [decisionId, normWallet]
+  );
+
+  return {
+    reactions: {
+      bullish: Number(summaryRow?.bullish ?? 0),
+      bearish: Number(summaryRow?.bearish ?? 0),
+      echoed: Number(summaryRow?.echoed ?? 0),
+      userReaction: summaryRow?.user_reaction ?? null,
+    },
+  };
+}
+

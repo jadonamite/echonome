@@ -13,6 +13,7 @@ const PILL_BAND_PX = 64;
 
 const LINKS: NavItem[] = [
   { href: "/echo-rank", label: "Echo Rank" },
+  { href: "/feed", label: "Feed" },
   { href: "/#how", label: "How it works" },
   { href: "/#custody", label: "Custody" },
   { href: "/#risk", label: "Risk" },

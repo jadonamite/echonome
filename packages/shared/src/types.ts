@@ -84,3 +84,29 @@ export const MIN_CALIBRATION_SAMPLE = 20;
 
 /** Skip an echo if fewer than this many minutes remain before the source market's expiry. */
 export const ECHO_EXPIRY_CUTOFF_MINUTES = 5;
+
+export type ReactionType = "bullish" | "bearish" | "echoed";
+
+export interface TradeComment {
+  id: string;
+  decisionId: string;
+  authorAddress: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface TradeReaction {
+  id: string;
+  decisionId: string;
+  walletAddress: string;
+  reaction: ReactionType;
+  createdAt: string;
+}
+
+export interface ReactionCounts {
+  bullish: number;
+  bearish: number;
+  echoed: number;
+  userReaction?: ReactionType | null;
+}
+

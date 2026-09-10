@@ -38,9 +38,12 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
       {/* Chain data. Keeps the panels and the reliability plot current without a reload. */}
       <LiveRefresh />
 
-      <div>
-        <Link href="/" className="text-xs text-ink-3 underline underline-offset-4 hover:text-ink-2">
+      <div className="flex items-center justify-between">
+        <Link href="/echo-rank" className="text-xs text-ink-3 underline underline-offset-4 hover:text-ink-2">
           ← Echo Rank
+        </Link>
+        <Link href="/feed" className="text-xs text-accent underline underline-offset-4 hover:text-ink">
+          View Live Trade Feed →
         </Link>
       </div>
 
@@ -164,6 +167,7 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
                   <Th align="right">Market price at entry</Th>
                   <Th>Settled</Th>
                   <Th>Result</Th>
+                  <Th align="right">Takes</Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule bg-surface">
@@ -189,6 +193,14 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
                       ) : (
                         <span className="text-critical">Wrong</span>
                       )}
+                    </Td>
+                    <Td align="right">
+                      <Link
+                        href="/feed?filter=discussions"
+                        className="font-mono text-xs text-ink-3 hover:text-accent transition"
+                      >
+                        💬 Takes
+                      </Link>
                     </Td>
                   </tr>
                 ))}

@@ -9,6 +9,7 @@ import { NavBar } from "@/components/site/nav-bar";
  */
 const NAV = [
   { href: "/echo-rank", label: "Echo Rank" },
+  { href: "/feed", label: "Feed" },
   { href: "/connect", label: "Connect" },
   { href: "/me", label: "My echoes" },
   { href: "/settings", label: "Settings" },
