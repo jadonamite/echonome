@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { NavBar, type NavItem } from "./nav-bar";
+import { LandingConnectButton } from "./landing-connect";
 
 /**
  * How far down the pill's lower edge sits: `top-3` (12px) plus its own height, rounded up.
@@ -88,7 +89,7 @@ export function LandingNav() {
     <>
       <header className="relative z-20 w-full">
         <div className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-10">
-          <NavBar links={LINKS} action={<ConnectLink />} />
+          <NavBar links={LINKS} action={<LandingConnectButton />} />
         </div>
       </header>
 
@@ -103,34 +104,11 @@ export function LandingNav() {
             <NavBar
               links={LINKS}
               surface={overLight ? "pill-light" : "pill"}
-              action={<ConnectLink onDark={!overLight} />}
+              action={<LandingConnectButton onDark={!overLight} />}
             />
           </div>
         </div>
       )}
     </>
-  );
-}
-
-/**
- * `whitespace-nowrap` because at 375px this label wrapped and doubled the bar's height.
- *
- * The label shortens below `md`, and that is a layout decision rather than a copy one. The mark
- * is centred against the bar, so it only READS as centred when the two sides roughly balance.
- * Below `md` the links are hidden and the left is a 40px toggle against a 120px button — the
- * mark sits dead centre and looks wrong. "Connect" takes about fifty pixels out of the right
- * and brings the two within sight of each other. From `md` the links return and carry the left
- * on their own, so the full label comes back with them.
- */
-function ConnectLink({ onDark = false }: { onDark?: boolean }) {
-  return (
-    <Link
-      href="/connect"
-      className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-85 sm:px-5 sm:py-2.5 ${
-        onDark ? "bg-white text-tile-ink" : "bg-tile-ink text-white"
-      }`}
-    >
-      Connect<span className="hidden md:inline"> wallet</span>
-    </Link>
   );
 }

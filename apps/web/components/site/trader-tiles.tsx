@@ -17,9 +17,10 @@ import { TraderAvatar } from "./trader-avatar";
  * the largest low on the right, framing the centred type without touching it. Those ratios are
  * reproduced below against the hero box.
  *
- * Absolute positioning only from `lg`. Below that the tiles become a scrolling row under the
- * call to action, because five floating squares around a headline on a phone is a headline
- * nobody can read.
+ * Scattered at every width. An earlier version dropped to a list below `lg` on the grounds that
+ * five floating squares around a headline on a phone is a headline nobody can read; the answer
+ * was to shrink the squares and thin their contents rather than to change the layout, so a
+ * phone now shows the same composition the desktop does.
  */
 
 type Tone = "ink" | "bone" | "indigo" | "chartreuse";
@@ -35,12 +36,21 @@ interface Placement {
   rotate: string;
 }
 
+/**
+ * Sizes are `vw` with a floor, and the floor is the compromise.
+ *
+ * The reference's proportions are the `vw` figures — 8.2% of the canvas for the smallest tile
+ * up to 19.5% for the largest — and holding those exactly would put the smallest at 31px on a
+ * 375px screen, which is smaller than the avatar inside it. The floors keep every tile large
+ * enough to read while staying as close to the reference's relative sizes as legibility
+ * allows, so a phone shows the same composition rather than a different layout.
+ */
 const PLACEMENTS: Placement[] = [
-  { top: "6%", left: "19%", size: "clamp(96px, 8.2vw, 124px)", tone: "ink", rotate: "-4deg" },
-  { top: "30%", left: "3.5%", size: "clamp(132px, 13vw, 196px)", tone: "ink", rotate: "3deg" },
-  { top: "66%", left: "15%", size: "clamp(140px, 15vw, 224px)", tone: "bone", rotate: "-2deg" },
-  { top: "11%", right: "6%", size: "clamp(110px, 10vw, 152px)", tone: "indigo", rotate: "5deg" },
-  { top: "50%", right: "1.5%", size: "clamp(168px, 19.5vw, 292px)", tone: "chartreuse", rotate: "-3deg" },
+  { top: "4%", left: "2%", size: "clamp(62px, 8.2vw, 124px)", tone: "ink", rotate: "-4deg" },
+  { top: "26%", left: "-1%", size: "clamp(76px, 13vw, 196px)", tone: "ink", rotate: "3deg" },
+  { top: "70%", left: "3%", size: "clamp(80px, 15vw, 224px)", tone: "bone", rotate: "-2deg" },
+  { top: "8%", right: "1%", size: "clamp(68px, 10vw, 152px)", tone: "indigo", rotate: "5deg" },
+  { top: "58%", right: "-2%", size: "clamp(92px, 19.5vw, 292px)", tone: "chartreuse", rotate: "-3deg" },
 ];
 
 /**
@@ -80,11 +90,17 @@ function Tile({
   return (
     <Link
       href={`/traders/${entry.id}`}
-      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-4 ${t.className}`}
+      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-2.5 lg:p-4 ${t.className}`}
     >
+      {/*
+        The name and the figure are `lg` only, and that is what makes the scatter survive a
+        phone. Below `lg` a tile is between 62 and 92 pixels across: a name would be two
+        truncated characters and the figure would crowd out the curve. The face and the line
+        are the two things that still say something at that size — who, and how they are doing.
+      */}
       <div className="flex min-w-0 items-start gap-2.5">
-        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={30} />
-        <div className="min-w-0">
+        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={26} />
+        <div className="hidden min-w-0 lg:block">
           <p className="truncate text-[11px] font-medium uppercase tracking-[0.14em] opacity-65">
             {entry.isSeed ? "Seed" : "Trader"}
           </p>
@@ -94,11 +110,13 @@ function Tile({
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2 lg:mt-3">
         {!compact && (
-          <p className="mb-2 font-mono text-[11px] tabular-nums opacity-80">{edgeLabel(entry)}</p>
+          <p className="mb-2 hidden font-mono text-[11px] tabular-nums opacity-80 lg:block">
+            {edgeLabel(entry)}
+          </p>
         )}
-        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} />
+        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={22} />
       </div>
     </Link>
   );
@@ -126,8 +144,8 @@ export function TraderTilesScatter({
 
   return (
     <>
-      {/* Desktop: scattered, exactly as the reference places them. */}
-      <div className="pointer-events-none absolute inset-0 hidden lg:block" aria-hidden={false}>
+      {/* Scattered at every width, exactly as the reference places them. */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden={false}>
         {tiles.map((entry, i) => {
           const place = PLACEMENTS[i];
           return (
@@ -160,84 +178,5 @@ export function TraderTilesScatter({
       </div>
 
     </>
-  );
-}
-
-/**
- * Below lg: cards that fit the screen instead of a strip that runs off it.
- *
- * This was a horizontal scroller of fixed 176px squares. Two problems, both visible on a phone.
- * The row was clipped mid-card at the right edge, which reads as broken layout rather than as
- * something you can push. And a square that small has to stack a label, a figure and a chart
- * vertically, so the chart got about thirty pixels of height and became a squiggle.
- *
- * Wide rows instead, one per line, laid out horizontally: mark and name on the left, the figure
- * beside it, the curve taking the rest of the width. The same information in the space it
- * actually wants — a line needs width far more than it needs height. Nothing is clipped and
- * nothing scrolls sideways.
- *
- * From `sm` to `lg` — tablets — two across, because at that width one row per trader leaves
- * half the line empty.
- */
-export function TraderTilesRow({
-  traders,
-  traces,
-}: {
-  traders: LeaderboardEntry[];
-  traces: Map<string, TraceTick[]>;
-}) {
-  const tiles = traders.slice(0, PLACEMENTS.length);
-  if (tiles.length === 0) return null;
-
-  return (
-    <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:hidden">
-      {tiles.map((entry, i) => (
-        <WideTile
-          key={entry.id}
-          entry={entry}
-          ticks={traces.get(entry.id) ?? []}
-          tone={PLACEMENTS[i].tone}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * The horizontal form of a tile.
- *
- * `min-w-0` on the middle column and `truncate` on the name are what stop a long name pushing
- * the curve off the card — without it the grid column takes the name's intrinsic width and the
- * chart is squeezed to nothing. The curve gets a fixed share of the row rather than whatever is
- * left over, so every card's chart is the same size regardless of how long its trader's name is.
- */
-function WideTile({
-  entry,
-  ticks,
-  tone,
-}: {
-  entry: LeaderboardEntry;
-  ticks: TraceTick[];
-  tone: Tone;
-}) {
-  const t = TONES[tone];
-  return (
-    <Link
-      href={`/traders/${entry.id}`}
-      className={`flex items-center gap-3 overflow-hidden rounded-3xl p-4 ${t.className}`}
-      style={{ boxShadow: "0 14px 30px -18px rgba(0,0,0,0.35)" }}
-    >
-      <TraderAvatar address={entry.address} name={traderName(entry.label)} size={40} />
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight">{traderName(entry.label)}</p>
-        <p className="mt-1 font-mono text-[11px] tabular-nums opacity-80">{edgeLabel(entry)}</p>
-      </div>
-
-      {/* Fixed width, so the chart is the same size on every card. */}
-      <div className="w-[86px] shrink-0 sm:w-[72px]">
-        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={30} />
-      </div>
-    </Link>
   );
 }

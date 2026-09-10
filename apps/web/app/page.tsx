@@ -8,7 +8,8 @@ import {
 } from "@/lib/queries";
 import { ReliabilityDiagram } from "@/components/reliability-diagram";
 import { LandingNav } from "@/components/site/landing-nav";
-import { TraderTilesRow, TraderTilesScatter } from "@/components/site/trader-tiles";
+import { RedirectWhenConnected } from "@/components/site/landing-connect";
+import { TraderTilesScatter } from "@/components/site/trader-tiles";
 import { TopTraders } from "@/components/site/top-traders";
 import { SiteFooter } from "@/components/site/footer";
 import { formatBrier } from "@/lib/format";
@@ -39,6 +40,9 @@ export default async function LandingPage() {
 
   return (
     <>
+      {/* A connected wallet belongs in the app, not on the pitch. Renders nothing. */}
+      <RedirectWhenConnected />
+
       {/* ── Act one, light ─────────────────────────────────────────────────────────── */}
       <div className="act-light dotgrid dotgrid-light">
         <LandingNav />
@@ -72,14 +76,22 @@ function Hero({
 }) {
   return (
     <section
-      className="relative mx-auto w-full max-w-7xl px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
+      // A minimum height at every width, not just lg. The tiles are absolutely positioned, so
+      // they take no space of their own: without this the hero collapses to the height of its
+      // text on a phone and the tiles at 58% and 70% land on whatever follows.
+      // `overflow-hidden` rather than pulling the tiles inside the edge. Two of them bleed
+      // past the hero on purpose — it is what stops the composition reading as a centred
+      // box — but a bleed that is allowed to extend the document scrolls the whole page
+      // sideways on a phone. Clipping keeps the bleed and drops the 10px of overflow it
+      // was causing at 375px.
+      className="relative mx-auto min-h-[34rem] w-full max-w-7xl overflow-hidden px-6 pb-24 pt-10 sm:min-h-[36rem] sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
     >
       <TraderTilesScatter traders={traders} traces={traces} />
 
       {/* The reference centres its type in a narrow column and lets the tiles hold the
           outer thirds of the canvas. The max-width here is what keeps the headline from
           running underneath them. */}
-      <div className="relative z-10 mx-auto max-w-2xl text-center">
+      <div className="relative z-10 mx-auto max-w-[15rem] text-center sm:max-w-md lg:max-w-2xl">
         <h1 className="mx-auto text-[clamp(2.25rem,6.2vw,4.5rem)] font-bold leading-[0.98] tracking-[-0.035em] text-ink">
           Copy the traders who are right when they say they are
         </h1>
@@ -105,10 +117,6 @@ function Hero({
           </a>
         </div>
       </div>
-
-      {/* Below lg only. Deliberately after the call to action: the headline is what the page
-          is about, and a phone should open on it rather than on a strip of tiles. */}
-      <TraderTilesRow traders={traders} traces={traces} />
     </section>
   );
 }
