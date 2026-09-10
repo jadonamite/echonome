@@ -41,11 +41,12 @@ export function describeWalletError(err: unknown): WalletErrorCopy {
   const message = messageOf(err);
   const lower = message.toLowerCase();
 
-  // 4001 — the user declined. Not a failure, and it must not read as one.
+  // 4001 — the user declined or closed the popup. Not a fatal failure.
   if (code === 4001 || lower.includes("user rejected") || lower.includes("user denied")) {
     return {
       title: "Request cancelled",
-      detail: "You dismissed the request in your wallet. Nothing was sent and nothing changed.",
+      detail:
+        "The request was cancelled or dismissed in your wallet. Open your wallet extension to approve connecting or switching to Somnia Shannon.",
     };
   }
 

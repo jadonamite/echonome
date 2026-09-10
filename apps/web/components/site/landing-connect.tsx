@@ -27,7 +27,12 @@ export function LandingConnectButton({ onDark = false }: { onDark?: boolean }) {
   useEffect(() => {
     if (!error) return;
     const { title, detail } = describeWalletError(error);
-    show({ tone: "error", title, detail });
+    const isCancelled =
+      title === "Request cancelled" ||
+      (error instanceof Error &&
+        (error.message.toLowerCase().includes("rejected") ||
+          error.message.toLowerCase().includes("denied")));
+    show({ tone: isCancelled ? "info" : "error", title, detail });
   }, [error, show]);
 
   const label = isConnected ? "Opening…" : isPending ? "Check your wallet" : "Connect";

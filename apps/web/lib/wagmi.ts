@@ -15,7 +15,7 @@ import { injected } from "@wagmi/core";
  */
 export const wagmiConfig = createConfig({
   chains: [somniaShannon],
-  connectors: [injected()],
+  connectors: [injected({ shimDisconnect: true })],
   transports: {
     [somniaShannon.id]: http(),
   },

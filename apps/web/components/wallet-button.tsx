@@ -34,7 +34,12 @@ export function WalletButton() {
     const err = error ?? switchError;
     if (!err) return;
     const { title, detail } = describeWalletError(err);
-    show({ tone: "error", title, detail });
+    const isCancelled =
+      title === "Request cancelled" ||
+      (err instanceof Error &&
+        (err.message.toLowerCase().includes("rejected") ||
+          err.message.toLowerCase().includes("denied")));
+    show({ tone: isCancelled ? "info" : "error", title, detail });
   }, [error, switchError, show]);
 
   if (!isConnected) {

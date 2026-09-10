@@ -421,17 +421,17 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
         </div>
       </div>
 
-      {/* 4. Action Bar: Heart (Stimulate Feed) + Bullish / Bearish Proper Icon Buttons Alone + Repost + Share */}
+      {/* 4. Action Bar: Heart (Stimulate Feed) + Bullish / Bearish Sentiment (Circle on mobile, Pill on desktop) + Repost + Share */}
       <div className="pt-2 flex items-center justify-between border-t border-rule/50 gap-2">
         {/* Left: Heart button (stimulate/like) */}
         <button
           type="button"
           onClick={() => handleReaction("like")}
           disabled={reacting}
-          className={`flex items-center gap-1.5 h-8 px-2 rounded-lg transition ${
+          className={`flex items-center gap-1.5 h-8 px-2.5 rounded-full transition ${
             reactions.userLiked
-              ? "text-critical bg-critical/10"
-              : "text-ink-3 hover:text-critical hover:bg-surface-raised"
+              ? "text-critical bg-critical/15 border border-critical/40 font-medium"
+              : "text-ink-3 hover:text-critical hover:bg-surface-raised border border-transparent"
           }`}
           title="Like & stimulate feed"
           aria-label="Like and stimulate feed"
@@ -440,44 +440,42 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
           <span className="text-xs font-mono font-medium">{reactions.like}</span>
         </button>
 
-        {/* Center: Bullish and Bearish as Proper Icon Buttons Alone */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          {/* Bullish Icon Button Alone */}
+        {/* Center: Bullish and Bearish Sentiment (Circle on mobile, Pill on desktop with colors) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Bullish Sentiment: Circle button on mobile, full pill on desktop */}
           <button
             type="button"
             onClick={() => handleReaction("bullish")}
             disabled={reacting}
-            aria-label="Bullish sentiment"
-            title={`Bullish sentiment (${reactions.bullish})`}
-            className={`flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg border transition ${
+            aria-label="Vote Bullish"
+            title={`Vote Bullish on this position (${reactions.bullish})`}
+            className={`flex items-center justify-center rounded-full border transition flex-shrink-0 text-xs font-mono ${
               reactions.userReaction === "bullish"
-                ? "border-good/60 bg-good/15 text-good font-semibold shadow-xs"
-                : "border-rule/80 bg-surface-raised/40 text-ink-3 hover:border-good/40 hover:text-good hover:bg-good/10"
-            }`}
+                ? "border-good bg-good/25 text-good font-semibold shadow-sm"
+                : "border-good/40 bg-good/10 text-good hover:border-good/70 hover:bg-good/20"
+            } h-8 w-8 sm:h-auto sm:w-auto sm:px-3 sm:py-1 sm:gap-1.5`}
           >
-            <TrendUp size={18} weight={reactions.userReaction === "bullish" ? "bold" : "bold"} className={reactions.userReaction === "bullish" ? "text-good" : ""} />
-            {reactions.bullish > 0 && (
-              <span className="text-xs font-mono font-semibold ml-1">{reactions.bullish}</span>
-            )}
+            <TrendUp size={16} weight="bold" className="text-good flex-shrink-0" />
+            <span className="hidden sm:inline">Bullish</span>
+            <span className="hidden sm:inline text-[11px] opacity-85">({reactions.bullish})</span>
           </button>
 
-          {/* Bearish Icon Button Alone */}
+          {/* Bearish Sentiment: Circle button on mobile, full pill on desktop */}
           <button
             type="button"
             onClick={() => handleReaction("bearish")}
             disabled={reacting}
-            aria-label="Bearish sentiment"
-            title={`Bearish sentiment (${reactions.bearish})`}
-            className={`flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg border transition ${
+            aria-label="Vote Bearish"
+            title={`Vote Bearish on this position (${reactions.bearish})`}
+            className={`flex items-center justify-center rounded-full border transition flex-shrink-0 text-xs font-mono ${
               reactions.userReaction === "bearish"
-                ? "border-critical/60 bg-critical/15 text-critical font-semibold shadow-xs"
-                : "border-rule/80 bg-surface-raised/40 text-ink-3 hover:border-critical/40 hover:text-critical hover:bg-critical/10"
-            }`}
+                ? "border-critical bg-critical/25 text-critical font-semibold shadow-sm"
+                : "border-critical/40 bg-critical/10 text-critical hover:border-critical/70 hover:bg-critical/20"
+            } h-8 w-8 sm:h-auto sm:w-auto sm:px-3 sm:py-1 sm:gap-1.5`}
           >
-            <TrendDown size={18} weight={reactions.userReaction === "bearish" ? "bold" : "bold"} className={reactions.userReaction === "bearish" ? "text-critical" : ""} />
-            {reactions.bearish > 0 && (
-              <span className="text-xs font-mono font-semibold ml-1">{reactions.bearish}</span>
-            )}
+            <TrendDown size={16} weight="bold" className="text-critical flex-shrink-0" />
+            <span className="hidden sm:inline">Bearish</span>
+            <span className="hidden sm:inline text-[11px] opacity-85">({reactions.bearish})</span>
           </button>
         </div>
 
@@ -490,10 +488,10 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
             disabled={reacting}
             aria-label="Echo / Repost trade"
             title={`Echo this trade (${reactions.echoed})`}
-            className={`flex items-center gap-1.5 h-8 px-2 rounded-lg transition ${
+            className={`flex items-center gap-1.5 h-8 px-2.5 rounded-full transition ${
               reactions.userEchoed
-                ? "text-accent bg-accent/10 font-semibold"
-                : "text-ink-3 hover:text-accent hover:bg-surface-raised"
+                ? "text-accent bg-accent/15 border border-accent/40 font-semibold"
+                : "text-ink-3 hover:text-accent hover:bg-surface-raised border border-transparent"
             }`}
           >
             <Repeat size={18} weight={reactions.userEchoed ? "bold" : "regular"} className={reactions.userEchoed ? "text-accent" : ""} />
@@ -508,7 +506,7 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
             onClick={handleShare}
             aria-label="Share trade link"
             title="Share trade link"
-            className="flex items-center justify-center h-8 w-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-raised transition"
+            className="flex items-center justify-center h-8 w-8 rounded-full text-ink-3 hover:text-ink hover:bg-surface-raised transition border border-transparent"
           >
             <ShareNetwork size={18} />
           </button>
