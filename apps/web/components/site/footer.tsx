@@ -17,8 +17,11 @@ import { MailingList } from "./mailing-list";
  * reader, and it happens to be the more honest pattern as well as the one in the brief.
  */
 const COLUMN_HEADING = "font-mono text-[10px] uppercase tracking-[0.18em] text-ink-3";
+// `inline-flex min-h-[32px] items-center` is the hit area, not the look. At 10px with no
+// padding these resolved to 15px tall, under the 24px WCAG 2.5.8 minimum and genuinely hard
+// to hit on a phone. Padding rather than font size, so the type stays as small as designed.
 const SMALL_LINK =
-  "font-mono text-[10px] uppercase tracking-[0.18em] text-ink-2 transition-colors hover:text-ink";
+  "inline-flex min-h-[32px] items-center font-mono text-[10px] uppercase tracking-[0.18em] text-ink-2 transition-colors hover:text-ink";
 
 export function SiteFooter() {
   return (

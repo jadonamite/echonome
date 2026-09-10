@@ -36,7 +36,11 @@ export function MailingList() {
         <button
           type="submit"
           aria-label="Join the mailing list"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-plane transition-opacity hover:opacity-85"
+          // The circle stays 28px because it sits inside the input pill and a 44px one would
+          // burst it. The pseudo-element extends only the TOUCH target to 44px, invisibly and
+          // without taking layout space, so the design is unchanged and the control is still
+          // reachable with a thumb.
+          className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-plane transition-opacity before:absolute before:-inset-2 before:content-[''] hover:opacity-85"
         >
           <svg width="11" height="9" viewBox="0 0 11 9" fill="none" aria-hidden>
             <path
