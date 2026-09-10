@@ -70,7 +70,13 @@ function Hero({
   traces: Awaited<ReturnType<typeof getRecentTraces>>;
 }) {
   return (
-    <section className="relative mx-auto w-full max-w-7xl px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16">
+    // data-hero is read by LandingNav, which reveals itself once this section has scrolled
+    // past. A marker rather than a scroll offset: the hero's height changes with viewport and
+    // content, and a hardcoded number would drift out of step with it silently.
+    <section
+      data-hero
+      className="relative mx-auto w-full max-w-7xl px-6 pb-24 pt-10 sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
+    >
       <TraderTiles traders={traders} traces={traces} />
 
       {/* The reference centres its type in a narrow column and lets the tiles hold the

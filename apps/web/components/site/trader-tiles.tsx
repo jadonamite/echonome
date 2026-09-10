@@ -155,9 +155,13 @@ export function TraderTiles({
         {tiles.map((entry, i) => {
           const place = PLACEMENTS[i];
           return (
+            // `rounded-tile` here casts the shadow, not the card. The radius lives on the
+            // <Link> inside, so without it this wrapper is a square box throwing a
+            // square-cornered shadow behind a rounded tile — its corners read as a hard
+            // underlay poking out past the curve, most obviously against the dotted ground.
             <div
               key={entry.id}
-              className="pointer-events-auto absolute transition-transform duration-300 hover:!rotate-0"
+              className="pointer-events-auto absolute rounded-tile transition-transform duration-300 hover:!rotate-0"
               style={{
                 top: place.top,
                 left: place.left,
@@ -184,7 +188,7 @@ export function TraderTiles({
         {tiles.map((entry, i) => (
           <div
             key={entry.id}
-            className="h-40 w-40 shrink-0"
+            className="h-40 w-40 shrink-0 rounded-tile"
             style={{ boxShadow: "0 18px 34px -18px rgba(0,0,0,0.3)" }}
           >
             <Tile
