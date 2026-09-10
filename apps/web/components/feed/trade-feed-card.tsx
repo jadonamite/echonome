@@ -3,6 +3,14 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { useAccount, useConnect } from "wagmi";
+import {
+  Heart,
+  TrendUp,
+  TrendDown,
+  Repeat,
+  ShareNetwork,
+  DotsThree,
+} from "@phosphor-icons/react";
 import type { FeedTrade, ReactionType, ReactionCounts } from "@/lib/queries";
 import { TraderAvatar } from "@/components/site/trader-avatar";
 import { traderIdentity } from "@/lib/trader-names";
@@ -13,14 +21,6 @@ import {
   shortMarket,
   timeAgo,
 } from "@/lib/format";
-import {
-  HeartIcon,
-  ShareIcon,
-  EchoIcon,
-  DotsIcon,
-  TrendUpIcon,
-  TrendDownIcon,
-} from "./icons";
 import { TradeCommentsThread } from "./trade-comments-thread";
 import { useToast } from "@/components/toast";
 
@@ -29,62 +29,95 @@ interface TradeFeedCardProps {
 }
 
 /**
- * Computes an ambient SVG area path simulating the market probability path of the position.
+ * Computes a smooth Monotone / Cubic Bézier spline path through coordinates.
+ * Produces silky, authentic financial curve rendering identical to shadcn / Recharts.
+ */
+function generateCubicBezierPath(
+  points: [number, number][],
+  width = 300,
+  height = 135
+): { line: string; area: string; lastPoint: [number, number] } {
+  if (points.length < 2) return { line: "", area: "", lastPoint: [0, 0] };
+  let d = `M ${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  const last = points[points.length - 1];
+  const area = `${d} L ${width} ${height} L 0 ${height} Z`;
+  return { line: d, area, lastPoint: last };
+}
+
+/**
+ * Generates an ambient shadcn-style area path simulating the market probability walk.
  */
 function generatePositionChart(
   impliedProb: number,
   side: "up" | "down",
   wasRight: boolean | null
 ) {
-  const isUp = side === "up";
-  const p = isUp ? impliedProb : 1 - impliedProb;
   const W = 300;
-  const H = 140;
+  const H = 135;
+  const isUp = side === "up";
+  const targetP = isUp ? impliedProb : 1 - impliedProb;
+  const baseline = 0.5;
 
-  const points: [number, number][] = [
-    [0, H * 0.5],
-    [40, H * Math.min(0.85, Math.max(0.15, 0.5 + (0.5 - p) * 0.3))],
-    [90, H * Math.min(0.85, Math.max(0.15, 0.5 - (p - 0.5) * 0.4))],
-    [150, H * (1 - p * 0.85)],
-    [210, H * (1 - p)],
-    [260, wasRight === null ? H * (1 - p * 1.02) : wasRight ? H * 0.12 : H * 0.88],
-    [300, wasRight === null ? H * (1 - p) : wasRight ? H * 0.05 : H * 0.95],
+  const rawFactors = [
+    baseline,
+    baseline + (targetP - baseline) * 0.25 + (isUp ? 0.04 : -0.04),
+    baseline + (targetP - baseline) * 0.45 - (isUp ? 0.03 : -0.03),
+    baseline + (targetP - baseline) * 0.70 + (isUp ? 0.02 : -0.02),
+    targetP - (isUp ? 0.02 : -0.02),
+    targetP + (isUp ? 0.03 : -0.03),
+    targetP,
+    wasRight === null ? targetP : wasRight ? 0.94 : 0.06,
+    wasRight === null ? targetP : wasRight ? 0.97 : 0.03,
   ];
 
-  const line = points
-    .map((pt, i) => `${i === 0 ? "M" : "L"}${pt[0].toFixed(1)},${pt[1].toFixed(1)}`)
-    .join(" ");
-  const area = `${line} L${W},${H} L0,${H} Z`;
+  const points: [number, number][] = rawFactors.map((v, i) => {
+    const x = (i / (rawFactors.length - 1)) * W;
+    const clampedV = Math.max(0.04, Math.min(0.96, v));
+    const y = H - 20 - clampedV * (H - 40);
+    return [x, y];
+  });
 
-  return { line, area };
+  return generateCubicBezierPath(points, W, H);
 }
 
 /**
- * Computes an ambient SVG area path from the trader's actual cumulative edge trace.
+ * Generates an ambient shadcn-style area path from cumulative fleet edge trace.
  */
 function generateEdgeChart(trace: number[], edge: number | null) {
   const W = 300;
-  const H = 140;
+  const H = 135;
 
-  let series = trace.length >= 2 ? trace : null;
+  let series = trace && trace.length >= 2 ? [...trace] : null;
   if (!series) {
-    const e = edge ?? 0;
-    series = [0, e * 0.2, e * 0.5, e * 0.8, e * 1.1, e * 1.4, e * 1.8];
+    const e = edge ?? 0.15;
+    series = [0, e * 0.18, e * 0.42, e * 0.35, e * 0.72, e * 0.65, e * 0.92, e * 1.05];
   }
 
   const lo = Math.min(0, ...series);
-  const hi = Math.max(0, ...series);
-  const span = Math.max(hi - lo, 0.4);
+  const hi = Math.max(0.1, ...series);
+  const span = Math.max(hi - lo, 0.15);
 
-  const x = (i: number) => (i / (series.length - 1)) * W;
-  const y = (v: number) => H - 15 - ((v - lo) / span) * (H - 30);
+  const points: [number, number][] = series.map((v, i) => {
+    const x = (i / (series.length - 1)) * W;
+    const normalized = (v - lo) / span;
+    const y = H - 22 - normalized * (H - 44);
+    return [x, y];
+  });
 
-  const line = series
-    .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-    .join(" ");
-  const area = `${line} L${W},${H} L0,${H} Z`;
-
-  return { line, area };
+  return generateCubicBezierPath(points, W, H);
 }
 
 export function TradeFeedCard({ trade }: TradeFeedCardProps) {
@@ -108,6 +141,9 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
 
   const posChart = generatePositionChart(trade.impliedProbability, trade.side, trade.wasRight);
   const edgeChart = generateEdgeChart(trade.edgeTrace, trade.traderEdge);
+
+  const posStrokeColor = isUp ? "#0ca30c" : "#d03b3b";
+  const edgeStrokeColor = "#6fe3e0";
 
   const narrative = isSettled
     ? isWon
@@ -203,7 +239,7 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
   }
 
   return (
-    <article className="rounded-2xl border border-rule bg-surface p-5 sm:p-6 space-y-4 shadow-sm transition hover:border-edge">
+    <article className="rounded-2xl border border-rule bg-surface p-4 sm:p-6 space-y-4 shadow-sm transition hover:border-edge">
       {/* 1. Profile Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
@@ -231,70 +267,80 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
 
         <Link
           href={`/traders/${trade.traderId}`}
-          className="text-ink-3 hover:text-ink transition p-1.5 rounded hover:bg-surface-raised"
+          className="text-ink-3 hover:text-ink transition p-1.5 rounded-lg hover:bg-surface-raised"
           title="View profile & decision history"
         >
-          <DotsIcon className="w-5 h-5" />
+          <DotsThree size={20} weight="bold" />
         </Link>
       </div>
 
       {/* 2. Post Narrative */}
       <p className="text-sm leading-relaxed text-ink-2">{narrative}</p>
 
-      {/* 3. Dual Visual Cards with Full-Bleed Ambient Background Charts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl overflow-hidden">
-        {/* Left Card: Contract & Position with Live Position Trajectory Chart */}
-        <div className="relative overflow-hidden rounded-xl border border-rule bg-plane p-4 flex flex-col justify-between min-h-[150px]">
-          {/* Ambient Background Chart */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-25">
-            <svg viewBox="0 0 300 140" preserveAspectRatio="none" className="w-full h-full">
+      {/* 3. Dual Visual Cards: Side-by-Side Flex on Mobile (No Vertical Stacking) with Shadcn Chart Aesthetic */}
+      <div className="flex flex-row gap-2 sm:gap-3">
+        {/* Left Card: Market & Position with Smooth Shadcn-Style Area Chart */}
+        <div className="flex-1 min-w-0 relative overflow-hidden rounded-xl border border-rule bg-plane p-3 sm:p-4 flex flex-col justify-between min-h-[135px] sm:min-h-[160px]">
+          {/* Ambient Shadcn-Style SVG Area Chart */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30 sm:opacity-35">
+            <svg viewBox="0 0 300 135" preserveAspectRatio="none" className="w-full h-full">
               <defs>
                 <linearGradient id={`pos-grad-${chartId}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={isUp ? "#0ca30c" : "#d03b3b"} stopOpacity="0.6" />
-                  <stop offset="100%" stopColor={isUp ? "#0ca30c" : "#d03b3b"} stopOpacity="0" />
+                  <stop offset="5%" stopColor={posStrokeColor} stopOpacity="0.32" />
+                  <stop offset="95%" stopColor={posStrokeColor} stopOpacity="0.0" />
                 </linearGradient>
               </defs>
+
+              {/* Faint shadcn horizontal reference lines */}
+              <line x1="0" y1="35" x2="300" y2="35" stroke="currentColor" strokeDasharray="3 3" className="text-rule" strokeOpacity="0.4" strokeWidth="1" />
+              <line x1="0" y1="75" x2="300" y2="75" stroke="currentColor" strokeDasharray="3 3" className="text-rule" strokeOpacity="0.4" strokeWidth="1" />
+              <line x1="0" y1="110" x2="300" y2="110" stroke="currentColor" strokeDasharray="3 3" className="text-rule" strokeOpacity="0.4" strokeWidth="1" />
+
+              {/* Shaded Area */}
               <path d={posChart.area} fill={`url(#pos-grad-${chartId})`} />
+
+              {/* Crisp hairline stroke curve */}
               <path
                 d={posChart.line}
                 fill="none"
-                stroke={isUp ? "#0ca30c" : "#d03b3b"}
-                strokeWidth="2"
+                stroke={posStrokeColor}
+                strokeWidth="1.75"
                 strokeLinecap="round"
+                strokeLinejoin="round"
               />
+
+              {/* Terminal data point dot with halo */}
+              <circle cx={posChart.lastPoint[0]} cy={posChart.lastPoint[1]} r="4.5" fill={posStrokeColor} opacity="0.3" />
+              <circle cx={posChart.lastPoint[0]} cy={posChart.lastPoint[1]} r="2" fill={posStrokeColor} />
             </svg>
           </div>
 
           {/* Foreground Content */}
-          <div className="relative z-10 flex items-center justify-between text-[11px] font-mono text-ink-3 tracking-wider uppercase">
-            <span>{trade.marketLabel ?? shortMarket(trade.marketId)}</span>
-            <span className={isUp ? "text-good font-semibold" : "text-critical font-semibold"}>
+          <div className="relative z-10 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-ink-3 tracking-wider uppercase">
+            <span className="truncate">{trade.marketLabel ?? shortMarket(trade.marketId)}</span>
+            <span className={isUp ? "text-good font-semibold ml-1 flex-shrink-0" : "text-critical font-semibold ml-1 flex-shrink-0"}>
               {trade.side.toUpperCase()}
             </span>
           </div>
 
-          <div className="relative z-10 py-2">
+          <div className="relative z-10 py-1 sm:py-2">
             <div
-              className={`text-3xl font-bold tracking-tight ${
+              className={`text-xl sm:text-2xl md:text-3xl font-bold tracking-tight ${
                 isUp ? "text-good" : "text-critical"
               }`}
             >
               {isUp ? "UP" : "DOWN"}
             </div>
-            <div className="text-xs font-mono text-ink-2 mt-1">
-              {Math.round(pricePaid * 100)}¢ entry · {formatProbability(trade.impliedProbability)} implied P
+            <div className="text-[10px] sm:text-xs font-mono text-ink-2 mt-0.5 truncate">
+              {Math.round(pricePaid * 100)}¢ entry · {formatProbability(trade.impliedProbability)} P
             </div>
           </div>
 
-          <div className="relative z-10 text-[11px] font-mono">
+          <div className="relative z-10 text-[10px] sm:text-[11px] font-mono truncate">
             {isSettled ? (
               <span className="text-ink-3">
                 Settled:{" "}
-                <span
-                  className={
-                    isWon ? "text-good font-medium" : "text-critical font-medium"
-                  }
-                >
+                <span className={isWon ? "text-good font-medium" : "text-critical font-medium"}>
                   {trade.settledOutcome?.toUpperCase()}{" "}
                   {isWon && `(+${Math.round((1 - pricePaid) * 100)}¢)`}
                 </span>
@@ -308,52 +354,66 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
           </div>
         </div>
 
-        {/* Right Card: Calibration & Edge with Real-Time Cumulative Edge Trace Chart */}
-        <div className="relative overflow-hidden rounded-xl border border-rule bg-plane p-4 flex flex-col justify-between min-h-[150px]">
-          {/* Ambient Background Chart */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-25">
-            <svg viewBox="0 0 300 140" preserveAspectRatio="none" className="w-full h-full">
+        {/* Right Card: Calibration & Edge with Smooth Shadcn-Style Area Chart */}
+        <div className="flex-1 min-w-0 relative overflow-hidden rounded-xl border border-rule bg-plane p-3 sm:p-4 flex flex-col justify-between min-h-[135px] sm:min-h-[160px]">
+          {/* Ambient Shadcn-Style SVG Area Chart */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30 sm:opacity-35">
+            <svg viewBox="0 0 300 135" preserveAspectRatio="none" className="w-full h-full">
               <defs>
                 <linearGradient id={`edge-grad-${chartId}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6fe3e0" stopOpacity="0.5" />
-                  <stop offset="100%" stopColor="#6fe3e0" stopOpacity="0" />
+                  <stop offset="5%" stopColor={edgeStrokeColor} stopOpacity="0.32" />
+                  <stop offset="95%" stopColor={edgeStrokeColor} stopOpacity="0.0" />
                 </linearGradient>
               </defs>
+
+              {/* Faint shadcn horizontal reference lines */}
+              <line x1="0" y1="35" x2="300" y2="35" stroke="currentColor" strokeDasharray="3 3" className="text-rule" strokeOpacity="0.4" strokeWidth="1" />
+              <line x1="0" y1="75" x2="300" y2="75" stroke="currentColor" strokeDasharray="3 3" className="text-rule" strokeOpacity="0.4" strokeWidth="1" />
+              <line x1="0" y1="110" x2="300" y2="110" stroke="currentColor" strokeDasharray="3 3" className="text-rule" strokeOpacity="0.4" strokeWidth="1" />
+
+              {/* Shaded Area */}
               <path d={edgeChart.area} fill={`url(#edge-grad-${chartId})`} />
+
+              {/* Crisp hairline stroke curve */}
               <path
                 d={edgeChart.line}
                 fill="none"
-                stroke="#6fe3e0"
-                strokeWidth="2"
+                stroke={edgeStrokeColor}
+                strokeWidth="1.75"
                 strokeLinecap="round"
+                strokeLinejoin="round"
               />
+
+              {/* Terminal data point dot with halo */}
+              <circle cx={edgeChart.lastPoint[0]} cy={edgeChart.lastPoint[1]} r="4.5" fill={edgeStrokeColor} opacity="0.3" />
+              <circle cx={edgeChart.lastPoint[0]} cy={edgeChart.lastPoint[1]} r="2" fill={edgeStrokeColor} />
             </svg>
           </div>
 
           {/* Foreground Content */}
-          <div className="relative z-10 flex items-center justify-between text-[11px] font-mono text-ink-3 tracking-wider uppercase">
-            <span>Rank & Fleet Edge</span>
-            {trade.traderIsSeed && <span>Seed Fleet</span>}
+          <div className="relative z-10 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-ink-3 tracking-wider uppercase">
+            <span className="truncate">Fleet Edge</span>
+            {trade.traderIsSeed && <span className="text-accent ml-1 flex-shrink-0">Seed</span>}
           </div>
 
-          <div className="relative z-10 py-2">
-            <div className="text-3xl font-bold font-mono tracking-tight text-ink">
+          <div className="relative z-10 py-1 sm:py-2">
+            <div className="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tight text-ink">
               {trade.traderEdge !== null ? formatEdge(trade.traderEdge) : "—"}
             </div>
-            <div className="text-xs font-mono text-ink-3 mt-1">
+            <div className="text-[10px] sm:text-xs font-mono text-ink-3 mt-0.5 truncate">
               {trade.traderSampleCount >= 20
-                ? "Edge per unit staked (95% CI)"
-                : `Warming up (${trade.traderSampleCount}/20 calls)`}
+                ? "Edge / unit (95% CI)"
+                : `Warming (${trade.traderSampleCount}/20)`}
             </div>
           </div>
 
-          <div className="relative z-10 flex items-center justify-between text-[11px] font-mono text-ink-3">
-            <span>
-              {trade.echoCount} {trade.echoCount === 1 ? "follower echo" : "follower echoes"}
+          <div className="relative z-10 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-ink-3">
+            <span className="truncate">
+              {trade.echoCount} {trade.echoCount === 1 ? "echo" : "echoes"}
             </span>
             <Link
               href={`/traders/${trade.traderId}`}
-              className="text-accent hover:underline"
+              className="text-accent hover:underline ml-1 flex-shrink-0"
             >
               Trace →
             </Link>
@@ -361,92 +421,107 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
         </div>
       </div>
 
-      {/* 4. Interaction Bar: Heart (Stimulate) + Bullish / Bearish Sentiment + Echo + Share */}
-      <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-rule/50">
-        <div className="flex items-center gap-3 sm:gap-4">
-          {/* Heart Button (Feed Stimulate / Like) */}
-          <button
-            type="button"
-            onClick={() => handleReaction("like")}
-            disabled={reacting}
-            className={`flex items-center gap-1.5 transition p-1.5 rounded hover:bg-surface-raised ${
-              reactions.userLiked ? "text-critical" : "text-ink-3 hover:text-ink"
-            }`}
-            title="Like & stimulate feed"
-          >
-            <HeartIcon filled={reactions.userLiked} className="w-5 h-5" />
-            <span className="text-xs font-mono font-medium">{reactions.like}</span>
-          </button>
+      {/* 4. Action Bar: Heart (Stimulate Feed) + Bullish / Bearish Proper Icon Buttons Alone + Repost + Share */}
+      <div className="pt-2 flex items-center justify-between border-t border-rule/50 gap-2">
+        {/* Left: Heart button (stimulate/like) */}
+        <button
+          type="button"
+          onClick={() => handleReaction("like")}
+          disabled={reacting}
+          className={`flex items-center gap-1.5 h-8 px-2 rounded-lg transition ${
+            reactions.userLiked
+              ? "text-critical bg-critical/10"
+              : "text-ink-3 hover:text-critical hover:bg-surface-raised"
+          }`}
+          title="Like & stimulate feed"
+          aria-label="Like and stimulate feed"
+        >
+          <Heart size={18} weight={reactions.userLiked ? "fill" : "regular"} className={reactions.userLiked ? "text-critical" : ""} />
+          <span className="text-xs font-mono font-medium">{reactions.like}</span>
+        </button>
 
-          {/* Bullish Sentiment Toggle */}
+        {/* Center: Bullish and Bearish as Proper Icon Buttons Alone */}
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          {/* Bullish Icon Button Alone */}
           <button
             type="button"
             onClick={() => handleReaction("bullish")}
             disabled={reacting}
-            className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-mono transition ${
+            aria-label="Bullish sentiment"
+            title={`Bullish sentiment (${reactions.bullish})`}
+            className={`flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg border transition ${
               reactions.userReaction === "bullish"
-                ? "border-good/60 bg-good/15 text-good font-semibold shadow-sm"
-                : "border-rule bg-surface-raised/60 text-ink-3 hover:border-edge hover:text-ink"
+                ? "border-good/60 bg-good/15 text-good font-semibold shadow-xs"
+                : "border-rule/80 bg-surface-raised/40 text-ink-3 hover:border-good/40 hover:text-good hover:bg-good/10"
             }`}
-            title="Vote Bullish on this position"
           >
-            <TrendUpIcon className="w-3.5 h-3.5 text-good" />
-            <span>Bullish</span>
-            <span className="text-[11px] opacity-80">({reactions.bullish})</span>
+            <TrendUp size={18} weight={reactions.userReaction === "bullish" ? "bold" : "bold"} className={reactions.userReaction === "bullish" ? "text-good" : ""} />
+            {reactions.bullish > 0 && (
+              <span className="text-xs font-mono font-semibold ml-1">{reactions.bullish}</span>
+            )}
           </button>
 
-          {/* Bearish Sentiment Toggle */}
+          {/* Bearish Icon Button Alone */}
           <button
             type="button"
             onClick={() => handleReaction("bearish")}
             disabled={reacting}
-            className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-mono transition ${
+            aria-label="Bearish sentiment"
+            title={`Bearish sentiment (${reactions.bearish})`}
+            className={`flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg border transition ${
               reactions.userReaction === "bearish"
-                ? "border-critical/60 bg-critical/15 text-critical font-semibold shadow-sm"
-                : "border-rule bg-surface-raised/60 text-ink-3 hover:border-edge hover:text-ink"
+                ? "border-critical/60 bg-critical/15 text-critical font-semibold shadow-xs"
+                : "border-rule/80 bg-surface-raised/40 text-ink-3 hover:border-critical/40 hover:text-critical hover:bg-critical/10"
             }`}
-            title="Vote Bearish on this position"
           >
-            <TrendDownIcon className="w-3.5 h-3.5 text-critical" />
-            <span>Bearish</span>
-            <span className="text-[11px] opacity-80">({reactions.bearish})</span>
+            <TrendDown size={18} weight={reactions.userReaction === "bearish" ? "bold" : "bold"} className={reactions.userReaction === "bearish" ? "text-critical" : ""} />
+            {reactions.bearish > 0 && (
+              <span className="text-xs font-mono font-semibold ml-1">{reactions.bearish}</span>
+            )}
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
+        {/* Right: Echo / Repost & Share */}
+        <div className="flex items-center gap-1 sm:gap-1.5">
           {/* Echo / Repost */}
           <button
             type="button"
             onClick={() => handleReaction("echoed")}
             disabled={reacting}
-            className={`flex items-center gap-1.5 transition p-1.5 rounded hover:bg-surface-raised ${
-              reactions.userEchoed ? "text-accent font-semibold" : "text-ink-3 hover:text-ink"
+            aria-label="Echo / Repost trade"
+            title={`Echo this trade (${reactions.echoed})`}
+            className={`flex items-center gap-1.5 h-8 px-2 rounded-lg transition ${
+              reactions.userEchoed
+                ? "text-accent bg-accent/10 font-semibold"
+                : "text-ink-3 hover:text-accent hover:bg-surface-raised"
             }`}
-            title="Mark as Echoed"
           >
-            <EchoIcon className="w-4 h-4" />
-            <span className="text-xs font-mono">{reactions.echoed}</span>
+            <Repeat size={18} weight={reactions.userEchoed ? "bold" : "regular"} className={reactions.userEchoed ? "text-accent" : ""} />
+            {reactions.echoed > 0 && (
+              <span className="text-xs font-mono">{reactions.echoed}</span>
+            )}
           </button>
 
           {/* Share */}
           <button
             type="button"
             onClick={handleShare}
-            className="text-ink-3 hover:text-ink transition p-1.5 rounded hover:bg-surface-raised"
-            title="Share trade"
+            aria-label="Share trade link"
+            title="Share trade link"
+            className="flex items-center justify-center h-8 w-8 rounded-lg text-ink-3 hover:text-ink hover:bg-surface-raised transition"
           >
-            <ShareIcon className="w-4 h-4" />
+            <ShareNetwork size={18} />
           </button>
         </div>
       </div>
 
       {/* 5. Clean Tally Line */}
-      <div className="flex flex-wrap items-center justify-between text-xs text-ink-3 font-mono pt-0.5">
-        <span className="font-semibold text-ink">
-          {reactions.like} {reactions.like === 1 ? "like" : "likes"} · {reactions.bullish + reactions.bearish} sentiment votes
+      <div className="flex items-center justify-between text-[11px] text-ink-3 font-mono pt-0.5 px-0.5">
+        <span className="font-medium text-ink-2 truncate">
+          {reactions.like} {reactions.like === 1 ? "like" : "likes"} · {reactions.bullish} bullish · {reactions.bearish} bearish
         </span>
-        <span className="text-[11px]">
-          {commentCount} {commentCount === 1 ? "take" : "takes"} · {trade.echoCount} {trade.echoCount === 1 ? "echo" : "echoes"}
+        <span className="truncate ml-2 flex-shrink-0">
+          {trade.echoCount} {trade.echoCount === 1 ? "echo" : "echoes"} · {commentCount} {commentCount === 1 ? "take" : "takes"}
         </span>
       </div>
 
@@ -469,3 +544,4 @@ export function TradeFeedCard({ trade }: TradeFeedCardProps) {
     </article>
   );
 }
+
