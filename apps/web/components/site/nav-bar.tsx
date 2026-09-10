@@ -89,7 +89,7 @@ export function NavBar({
       >
         {/* Left: links from md up, the toggle below it. */}
         <div className="flex items-center">
-          <nav aria-label="Sections" className="hidden items-center gap-7 md:flex">
+          <nav aria-label="Sections" className="hidden items-center gap-7 lg:flex">
             {links.map((link) => (
               <NavLink
                 key={link.href}
@@ -104,7 +104,7 @@ export function NavBar({
             open={menuOpen}
             onDark={onDark}
             onToggle={() => setMenuOpen((v) => !v)}
-            className="md:hidden"
+            className="lg:hidden"
           />
         </div>
 
@@ -213,7 +213,7 @@ function MobileMenu({
 }) {
   return (
     <div
-      className={`absolute left-0 top-[calc(100%+10px)] z-50 w-56 origin-top-left rounded-3xl border p-2 shadow-[0_16px_44px_-14px_rgba(0,0,0,0.45)] md:hidden motion-safe:transition-[opacity,transform,visibility] motion-safe:duration-200 motion-safe:ease-out ${
+      className={`absolute left-0 top-[calc(100%+10px)] z-50 w-56 origin-top-left rounded-3xl border p-2 shadow-[0_16px_44px_-14px_rgba(0,0,0,0.45)] lg:hidden motion-safe:transition-[opacity,transform,visibility] motion-safe:duration-200 motion-safe:ease-out ${
         onDark
           ? "border-white/15 bg-tile-ink/95 supports-[backdrop-filter]:bg-tile-ink/85 supports-[backdrop-filter]:backdrop-blur-xl"
           : "border-rule bg-surface"

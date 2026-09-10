@@ -209,3 +209,65 @@ html {
 .animate-toast-in {
   animation: toast-in 180ms ease-out;
 }
+
+/**
+ * The hero scatter, in three tiers.
+ *
+ * Five squircles framing a centred headline, from `design/references/web3-wgmi.jpeg`. The
+ * arrangement never changes; what changes is scale, and with it how much a tile can honestly
+ * say. The tiers are set by what fits INSIDE a tile, not by device:
+ *
+ *   laptop   96-292px  face, name, figure and curve, at the reference's own proportions
+ *   tablet  104-156px  the same four, with tighter type and padding
+ *   phone    62-92px   face and curve only — a name here is two truncated characters
+ *
+ * Positions pull toward the edges as the canvas narrows, because the headline column takes a
+ * larger share of a small screen and the tiles have to clear it.
+ *
+ * Written as CSS rather than inline styles or generated class names for two reasons: inline
+ * styles cannot carry media queries, and Tailwind's scanner only sees class strings written
+ * out in full, so building `left-[19%]` from an array would silently produce nothing.
+ */
+.hero-tile {
+  position: absolute;
+  pointer-events: auto;
+  border-radius: var(--tile-radius);
+  box-shadow: 0 22px 48px -16px rgba(0, 0, 0, 0.32);
+  transition: transform 300ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-tile {
+    transition: none;
+  }
+}
+
+/* Straightens on hover, so a tile you are pointing at is the one you can read. */
+.hero-tile:hover {
+  transform: rotate(0deg) !important;
+}
+
+/* Phone: the tightest the composition goes before it stops being readable. */
+.hero-tile-1 { top: 4%;  left: 2%;   width: 62px; height: 62px; transform: rotate(-4deg); }
+.hero-tile-2 { top: 26%; left: -1%;  width: 76px; height: 76px; transform: rotate(3deg); }
+.hero-tile-3 { top: 70%; left: 3%;   width: 80px; height: 80px; transform: rotate(-2deg); }
+.hero-tile-4 { top: 8%;  right: 1%;  width: 68px; height: 68px; transform: rotate(5deg); }
+.hero-tile-5 { top: 58%; right: -2%; width: 92px; height: 92px; transform: rotate(-3deg); }
+
+/* Tablet: large enough to carry the figure and the name again. */
+@media (min-width: 768px) {
+  .hero-tile-1 { top: 5%;  left: 2%;   width: 104px; height: 104px; }
+  .hero-tile-2 { top: 28%; left: 0%;   width: 128px; height: 128px; }
+  .hero-tile-3 { top: 66%; left: 3%;   width: 136px; height: 136px; }
+  .hero-tile-4 { top: 9%;  right: 2%;  width: 112px; height: 112px; }
+  .hero-tile-5 { top: 54%; right: 0%;  width: 156px; height: 156px; }
+}
+
+/* Laptop: the reference's own placement and proportions, unchanged. */
+@media (min-width: 1024px) {
+  .hero-tile-1 { top: 6%;  left: 19%;   width: clamp(96px, 8.2vw, 124px);   height: clamp(96px, 8.2vw, 124px); }
+  .hero-tile-2 { top: 30%; left: 3.5%;  width: clamp(132px, 13vw, 196px);   height: clamp(132px, 13vw, 196px); }
+  .hero-tile-3 { top: 66%; left: 15%;   width: clamp(140px, 15vw, 224px);   height: clamp(140px, 15vw, 224px); }
+  .hero-tile-4 { top: 11%; right: 6%;   width: clamp(110px, 10vw, 152px);   height: clamp(110px, 10vw, 152px); }
+  .hero-tile-5 { top: 50%; right: 1.5%; width: clamp(168px, 19.5vw, 292px); height: clamp(168px, 19.5vw, 292px); }
+}

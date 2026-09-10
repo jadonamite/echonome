@@ -52,9 +52,9 @@ export function WalletButton() {
           {/* Shortened below md for the same reason as the landing page's button: the mark is
               centred against the bar and only reads as centred while the two sides balance. */}
           {isPending ? (
-            <>Checking<span className="hidden md:inline"> your wallet</span>…</>
+            <>Checking<span className="hidden lg:inline"> your wallet</span>…</>
           ) : (
-            <>Connect<span className="hidden md:inline"> wallet</span></>
+            <>Connect<span className="hidden lg:inline"> wallet</span></>
           )}
         </button>
       </div>
@@ -70,8 +70,8 @@ export function WalletButton() {
       >
         {/* The full network name is 24 characters and swamped the bar on a phone. The short
             form still says what the button does; the long one returns with the links at md. */}
-        Switch<span className="hidden md:inline"> to Somnia Shannon</span>
-        <span className="md:hidden"> network</span>
+        Switch<span className="hidden lg:inline"> to Somnia Shannon</span>
+        <span className="lg:hidden"> network</span>
       </button>
     );
   }

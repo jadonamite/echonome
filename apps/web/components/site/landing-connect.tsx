@@ -52,8 +52,9 @@ export function LandingConnectButton({ onDark = false }: { onDark?: boolean }) {
       }`}
     >
       {label}
-      {/* The word only fits from md, where the nav links carry the left of the bar. */}
-      {!isConnected && !isPending && <span className="hidden md:inline"> wallet</span>}
+      {/* The word returns with the links, at lg. Below that the hamburger holds the left
+          of the bar and the mark is centred against it, so the button has to stay light. */}
+      {!isConnected && !isPending && <span className="hidden lg:inline"> wallet</span>}
     </button>
   );
 }

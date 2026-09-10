@@ -25,32 +25,21 @@ import { TraderAvatar } from "./trader-avatar";
 
 type Tone = "ink" | "bone" | "indigo" | "chartreuse";
 
+/**
+ * Only the tone lives here now. Position, size and rotation moved to `.hero-tile-N` in
+ * globals.css, because they differ per breakpoint and inline styles cannot carry a media
+ * query. The order of this array is the order of those classes.
+ */
 interface Placement {
-  /** Percentages of the hero box, taken from the reference. */
-  top: string;
-  left?: string;
-  right?: string;
-  /** Edge length. Clamped so the tiles keep their relative sizes as the viewport moves. */
-  size: string;
   tone: Tone;
-  rotate: string;
 }
 
-/**
- * Sizes are `vw` with a floor, and the floor is the compromise.
- *
- * The reference's proportions are the `vw` figures — 8.2% of the canvas for the smallest tile
- * up to 19.5% for the largest — and holding those exactly would put the smallest at 31px on a
- * 375px screen, which is smaller than the avatar inside it. The floors keep every tile large
- * enough to read while staying as close to the reference's relative sizes as legibility
- * allows, so a phone shows the same composition rather than a different layout.
- */
 const PLACEMENTS: Placement[] = [
-  { top: "4%", left: "2%", size: "clamp(62px, 8.2vw, 124px)", tone: "ink", rotate: "-4deg" },
-  { top: "26%", left: "-1%", size: "clamp(76px, 13vw, 196px)", tone: "ink", rotate: "3deg" },
-  { top: "70%", left: "3%", size: "clamp(80px, 15vw, 224px)", tone: "bone", rotate: "-2deg" },
-  { top: "8%", right: "1%", size: "clamp(68px, 10vw, 152px)", tone: "indigo", rotate: "5deg" },
-  { top: "58%", right: "-2%", size: "clamp(92px, 19.5vw, 292px)", tone: "chartreuse", rotate: "-3deg" },
+  { tone: "ink" },
+  { tone: "ink" },
+  { tone: "bone" },
+  { tone: "indigo" },
+  { tone: "chartreuse" },
 ];
 
 /**
@@ -79,43 +68,39 @@ function Tile({
   entry,
   ticks,
   tone,
-  compact,
 }: {
   entry: LeaderboardEntry;
   ticks: TraceTick[];
   tone: Tone;
-  compact: boolean;
 }) {
   const t = TONES[tone];
   return (
     <Link
       href={`/traders/${entry.id}`}
-      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-2.5 lg:p-4 ${t.className}`}
+      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-2.5 md:p-3 lg:p-4 ${t.className}`}
     >
       {/*
-        The name and the figure are `lg` only, and that is what makes the scatter survive a
-        phone. Below `lg` a tile is between 62 and 92 pixels across: a name would be two
-        truncated characters and the figure would crowd out the curve. The face and the line
-        are the two things that still say something at that size — who, and how they are doing.
+        The name and the figure appear from `md`, where a tile is at least 104px and has room
+        for them. Below that it is between 62 and 92 pixels across: a name would be two
+        truncated characters and the figure would crowd out the curve, so the face and the line
+        carry it — who, and how they are doing.
       */}
       <div className="flex min-w-0 items-start gap-2.5">
         <TraderAvatar address={entry.address} name={traderName(entry.label)} size={26} />
-        <div className="hidden min-w-0 lg:block">
-          <p className="truncate text-[11px] font-medium uppercase tracking-[0.14em] opacity-65">
+        <div className="hidden min-w-0 md:block">
+          <p className="truncate text-[9px] font-medium uppercase tracking-[0.14em] opacity-65 lg:text-[11px]">
             {entry.isSeed ? "Seed" : "Trader"}
           </p>
-          <p className="mt-0.5 truncate text-[13px] font-semibold leading-tight sm:text-sm">
+          <p className="mt-0.5 truncate text-[12px] font-semibold leading-tight lg:text-sm">
             {traderName(entry.label)}
           </p>
         </div>
       </div>
 
       <div className="mt-2 lg:mt-3">
-        {!compact && (
-          <p className="mb-2 hidden font-mono text-[11px] tabular-nums opacity-80 lg:block">
+                  <p className="mb-1.5 hidden font-mono text-[10px] tabular-nums opacity-80 md:block lg:mb-2 lg:text-[11px]">
             {edgeLabel(entry)}
           </p>
-        )}
         <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={22} />
       </div>
     </Link>
@@ -153,25 +138,11 @@ export function TraderTilesScatter({
             // <Link> inside, so without it this wrapper is a square box throwing a
             // square-cornered shadow behind a rounded tile — its corners read as a hard
             // underlay poking out past the curve, most obviously against the dotted ground.
-            <div
-              key={entry.id}
-              className="pointer-events-auto absolute rounded-tile transition-transform duration-300 hover:!rotate-0"
-              style={{
-                top: place.top,
-                left: place.left,
-                right: place.right,
-                width: place.size,
-                height: place.size,
-                transform: `rotate(${place.rotate})`,
-                boxShadow: "0 22px 48px -16px rgba(0,0,0,0.32)",
-              }}
-            >
-              <Tile
-                entry={entry}
-                ticks={traces.get(entry.id) ?? []}
-                tone={place.tone}
-                compact={i === 0}
-              />
+            // `.hero-tile` carries the radius so the SHADOW is rounded too. The radius on the
+            // <Link> alone leaves this wrapper square, and a square-cornered shadow behind a
+            // rounded tile reads as a hard underlay poking past the curve.
+            <div key={entry.id} className={`hero-tile hero-tile-${i + 1}`}>
+              <Tile entry={entry} ticks={traces.get(entry.id) ?? []} tone={place.tone} />
             </div>
           );
         })}
