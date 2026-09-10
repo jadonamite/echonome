@@ -112,15 +112,40 @@ export default function ConnectPage() {
     }
   }
 
+  /**
+   * Deploying the account. Gas is ESTIMATED, not asserted.
+   *
+   * This carried a hardcoded `gas: 30_000_000n`. The deploy really does need roughly 22.6M
+   * (HANDOVER.md), so the number was not plucked from nowhere — but a fixed limit that high
+   * is above some wallets' and some chains' ceiling, and a wallet that considers the limit
+   * invalid can decline without ever showing a prompt. From the outside that is a button that
+   * does nothing at all.
+   *
+   * Estimate, add a fifth for headroom, and fall back to the old constant only if estimation
+   * itself fails — which at least fails loudly, through the same error path as everything else.
+   */
   const deploy = () =>
-    run("deploy", () =>
-      walletClient!.writeContract({
+    run("deploy", async () => {
+      let gas: bigint;
+      try {
+        const estimate = await publicClient!.estimateContractGas({
+          address: ECHO_ACCOUNT_FACTORY,
+          abi: echoAccountFactoryAbi,
+          functionName: "deploy",
+          account: address!,
+        });
+        gas = (estimate * 12n) / 10n;
+      } catch {
+        gas = 30_000_000n;
+      }
+
+      return walletClient!.writeContract({
         address: ECHO_ACCOUNT_FACTORY,
         abi: echoAccountFactoryAbi,
         functionName: "deploy",
-        gas: 30_000_000n,
-      })
-    );
+        gas,
+      });
+    });
 
   const deposit = () =>
     run("deposit", () =>
@@ -171,6 +196,14 @@ export default function ConnectPage() {
     });
     await refresh();
   }
+
+  const blockedReason = !isConnected
+    ? "Connect your wallet first — the button is in the header."
+    : !onRightChain
+      ? "Your wallet is on the wrong network. Switch it to Somnia Shannon and this becomes available."
+      : !walletClient || !publicClient
+        ? "Waiting for your wallet to respond. If this persists, unlock it and reload."
+        : null;
 
   const step: Step = !isConnected || !onRightChain
     ? "connect"
@@ -229,9 +262,19 @@ export default function ConnectPage() {
           }
         >
           {!isDeployed && (
-            <button type="button" onClick={deploy} disabled={!ready || busy !== null} className={buttonClass}>
-              {busy === "deploy" ? "Deploying…" : "Deploy my account"}
-            </button>
+            <div className="space-y-2">
+              <button type="button" onClick={deploy} disabled={!ready || busy !== null} className={buttonClass}>
+                {busy === "deploy" ? "Deploying…" : "Deploy my account"}
+              </button>
+              {/* A disabled button that does not say why is indistinguishable from a broken
+                  one. This is the step people actually get stuck on. */}
+              <Blocked reason={blockedReason} />
+              {/* And the error belongs next to the thing that caused it. The page-level notice
+                  sits below three more steps, far off screen on a phone. */}
+              {busy === null && error && (
+                <p className="text-xs leading-relaxed text-critical">{error}</p>
+              )}
+            </div>
           )}
         </StepRow>
 
@@ -362,7 +405,12 @@ export default function ConnectPage() {
 }
 
 const buttonClass =
-  "border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-40";
+  "rounded-full border border-edge px-4 py-1.5 text-sm text-ink hover:bg-surface-raised disabled:opacity-40";
+
+function Blocked({ reason }: { reason: string | null }) {
+  if (!reason) return null;
+  return <p className="text-xs leading-relaxed text-ink-3">{reason}</p>;
+}
 
 function Field({
   id,
