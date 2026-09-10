@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LeaderboardEntry, TraceTick } from "@/lib/queries";
 import { traderName } from "@/lib/trader-names";
 import { EdgeSpark } from "./edge-spark";
+import { TraderAvatar } from "./trader-avatar";
 
 /**
  * The five squircles scattered around the hero headline.
@@ -81,13 +82,16 @@ function Tile({
       href={`/traders/${entry.id}`}
       className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-4 ${t.className}`}
     >
-      <div className="min-w-0">
-        <p className="truncate text-[11px] font-medium uppercase tracking-[0.14em] opacity-65">
-          {entry.isSeed ? "Seed" : "Trader"}
-        </p>
-        <p className="mt-1 truncate text-[13px] font-semibold leading-tight sm:text-sm">
-          {traderName(entry.label)}
-        </p>
+      <div className="flex min-w-0 items-start gap-2.5">
+        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={30} />
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-medium uppercase tracking-[0.14em] opacity-65">
+            {entry.isSeed ? "Seed" : "Trader"}
+          </p>
+          <p className="mt-0.5 truncate text-[13px] font-semibold leading-tight sm:text-sm">
+            {traderName(entry.label)}
+          </p>
+        </div>
       </div>
 
       <div className="mt-3">
@@ -160,13 +164,20 @@ export function TraderTilesScatter({
 }
 
 /**
- * Below lg: a scrolling row, rendered under the call to action.
+ * Below lg: cards that fit the screen instead of a strip that runs off it.
  *
- * `snap-x snap-mandatory` with `snap-start` on each tile so a swipe settles on a whole card
- * rather than leaving one sliced down the middle — a half-tile at the edge reads as broken
- * layout, where a cleanly-aligned one reads as a gallery you can push. The negative margin
- * with matching padding lets the row bleed to both screen edges while its first and last
- * tiles still align with the page's text column.
+ * This was a horizontal scroller of fixed 176px squares. Two problems, both visible on a phone.
+ * The row was clipped mid-card at the right edge, which reads as broken layout rather than as
+ * something you can push. And a square that small has to stack a label, a figure and a chart
+ * vertically, so the chart got about thirty pixels of height and became a squiggle.
+ *
+ * Wide rows instead, one per line, laid out horizontally: mark and name on the left, the figure
+ * beside it, the curve taking the rest of the width. The same information in the space it
+ * actually wants — a line needs width far more than it needs height. Nothing is clipped and
+ * nothing scrolls sideways.
+ *
+ * From `sm` to `lg` — tablets — two across, because at that width one row per trader leaves
+ * half the line empty.
  */
 export function TraderTilesRow({
   traders,
@@ -179,21 +190,54 @@ export function TraderTilesRow({
   if (tiles.length === 0) return null;
 
   return (
-    <div className="-mx-6 mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 sm:-mx-10 sm:px-10 lg:hidden">
+    <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:hidden">
       {tiles.map((entry, i) => (
-        <div
+        <WideTile
           key={entry.id}
-          className="h-44 w-44 shrink-0 snap-start rounded-tile"
-          style={{ boxShadow: "0 18px 34px -18px rgba(0,0,0,0.3)" }}
-        >
-          <Tile
-            entry={entry}
-            ticks={traces.get(entry.id) ?? []}
-            tone={PLACEMENTS[i].tone}
-            compact={false}
-          />
-        </div>
+          entry={entry}
+          ticks={traces.get(entry.id) ?? []}
+          tone={PLACEMENTS[i].tone}
+        />
       ))}
     </div>
+  );
+}
+
+/**
+ * The horizontal form of a tile.
+ *
+ * `min-w-0` on the middle column and `truncate` on the name are what stop a long name pushing
+ * the curve off the card — without it the grid column takes the name's intrinsic width and the
+ * chart is squeezed to nothing. The curve gets a fixed share of the row rather than whatever is
+ * left over, so every card's chart is the same size regardless of how long its trader's name is.
+ */
+function WideTile({
+  entry,
+  ticks,
+  tone,
+}: {
+  entry: LeaderboardEntry;
+  ticks: TraceTick[];
+  tone: Tone;
+}) {
+  const t = TONES[tone];
+  return (
+    <Link
+      href={`/traders/${entry.id}`}
+      className={`flex items-center gap-3 overflow-hidden rounded-3xl p-4 ${t.className}`}
+      style={{ boxShadow: "0 14px 30px -18px rgba(0,0,0,0.35)" }}
+    >
+      <TraderAvatar address={entry.address} name={traderName(entry.label)} size={40} />
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold leading-tight">{traderName(entry.label)}</p>
+        <p className="mt-1 font-mono text-[11px] tabular-nums opacity-80">{edgeLabel(entry)}</p>
+      </div>
+
+      {/* Fixed width, so the chart is the same size on every card. */}
+      <div className="w-[86px] shrink-0 sm:w-[72px]">
+        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={30} />
+      </div>
+    </Link>
   );
 }

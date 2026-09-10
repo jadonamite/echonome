@@ -71,13 +71,25 @@ export function SiteFooter() {
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-3">
             {NETWORK_NAME}. Testnet only, no audit, no legal review.
           </p>
-          <p className="font-mono text-[10px] tracking-wide text-ink-3">
+          {/*
+            `min-w-0` and `break-all` together, and both are needed.
+
+            The address is 42 unbroken characters, so there is nothing for the browser to wrap
+            at and it ran past the footer's own border on a phone. `break-all` lets it break
+            mid-string; `min-w-0` is what lets this flex child shrink below that string's
+            intrinsic width in the `md:flex-row` case, without which the row itself just gets
+            wider and the overflow moves up a level instead of going away.
+
+            Wrapped rather than truncated on purpose: the point of printing the factory address
+            is that a reader can check it, and a shortened address is not checkable.
+          */}
+          <p className="min-w-0 font-mono text-[10px] tracking-wide text-ink-3">
             Factory{" "}
             <a
               href={`${EXPLORER_URL}/address/${ECHO_ACCOUNT_FACTORY}`}
               target="_blank"
               rel="noreferrer"
-              className="text-accent underline-offset-4 hover:underline"
+              className="break-all text-accent underline-offset-4 hover:underline"
             >
               {ECHO_ACCOUNT_FACTORY}
             </a>

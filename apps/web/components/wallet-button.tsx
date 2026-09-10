@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { shortAddress } from "@/lib/format";
+import { useToast } from "@/components/toast";
+import { describeWalletError } from "@/lib/wallet-errors";
 
 /**
  * Connect / disconnect, plus the one piece of chain state that actually matters here:
@@ -14,14 +17,29 @@ export function WalletButton() {
   const { connect, connectors, isPending, error } = useConnect();
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
+  const { switchChain, error: switchError } = useSwitchChain();
+  const { show } = useToast();
 
   const injected = connectors[0];
+
+  /**
+   * Wallet failures go to the toast, not into the bar.
+   *
+   * Rendering the message inline put red text inside the nav and changed the bar's height
+   * while it was there, so a rejected signature reflowed the page it was reporting on. A
+   * rejection is also a moment rather than a state — it describes something the user just
+   * did, and it should leave on its own rather than sitting there until the next render.
+   */
+  useEffect(() => {
+    const err = error ?? switchError;
+    if (!err) return;
+    const { title, detail } = describeWalletError(err);
+    show({ tone: "error", title, detail });
+  }, [error, switchError, show]);
 
   if (!isConnected) {
     return (
       <div className="flex items-center gap-3">
-        {error ? <span className="text-xs text-critical">{error.message}</span> : null}
         <button
           type="button"
           onClick={() => injected && connect({ connector: injected })}

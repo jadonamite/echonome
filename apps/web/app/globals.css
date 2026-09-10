@@ -190,3 +190,22 @@ html {
  * that are already correct — closed is genuinely hidden, open is genuinely visible — and if
  * no transition ever runs they simply snap instead of disappearing.
  */
+
+/**
+ * The toast's entrance. Safe to animate: the element only exists while it is being shown, so
+ * there is no resting state for a stalled animation to strand it in.
+ */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 180ms ease-out;
+}

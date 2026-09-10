@@ -1,5 +1,5 @@
 import { WalletButton } from "@/components/wallet-button";
-import { SiteFooter } from "@/components/site/footer";
+import { AppFooter } from "@/components/site/app-footer";
 import { NavBar } from "@/components/site/nav-bar";
 
 /**
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/echo-rank", label: "Echo Rank" },
   { href: "/connect", label: "Connect" },
   { href: "/me", label: "My echoes" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -36,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">{children}</main>
 
-      <SiteFooter />
+      <AppFooter />
     </div>
   );
 }
