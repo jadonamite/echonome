@@ -5,6 +5,7 @@ import { getTraderDecisions, getTraderSummary } from "@/lib/queries";
 import { DecisionTrace, DecisionTraceLegend } from "@/components/decision-trace";
 import { ReliabilityDiagram } from "@/components/reliability-diagram";
 import { LiveRefresh } from "@/components/live-refresh";
+import { traderIdentity } from "@/lib/trader-names";
 import { CopyButton } from "./copy-button";
 import {
   brierVerdict,
@@ -46,14 +47,21 @@ export default async function TraderPage({ params }: { params: Promise<{ id: str
       <section className="flex flex-wrap items-start justify-between gap-6">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{trader.label}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {traderIdentity(trader.label).name}
+            </h1>
             {trader.isSeed && (
               <span className="border border-edge px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ink-3">
                 Seed
               </span>
             )}
           </div>
-          <p className="font-mono text-xs text-ink-3 tnum">{trader.address}</p>
+          <p className="font-mono text-xs text-ink-3 tnum">
+            {traderIdentity(trader.label).strategy} · {trader.address}
+          </p>
+          {traderIdentity(trader.label).role && (
+            <p className="max-w-xl text-xs text-ink-3">{traderIdentity(trader.label).role}</p>
+          )}
           <p className="text-sm text-ink-2">
             {trader.activeFollowers === 0
               ? "No one is copying this trader yet."

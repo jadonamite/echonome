@@ -12,6 +12,7 @@ import { TraderTilesRow, TraderTilesScatter } from "@/components/site/trader-til
 import { TopTraders } from "@/components/site/top-traders";
 import { SiteFooter } from "@/components/site/footer";
 import { formatBrier } from "@/lib/format";
+import { traderName } from "@/lib/trader-names";
 
 /**
  * The landing page, built to `design/references/web3-wgmi.jpeg`.
@@ -260,7 +261,7 @@ function HighlightPanel({
           </h3>
 
           <p className="mt-5 max-w-prose text-base leading-relaxed text-ink-2">
-            <span className="font-mono text-ink">{highlight.label}</span> scores{" "}
+            <span className="text-ink">{traderName(highlight.label)}</span> scores{" "}
             <span className="font-mono tabular-nums text-ink">{formatBrier(highlight.brier)}</span>{" "}
             across{" "}
             <span className="font-mono tabular-nums text-ink">

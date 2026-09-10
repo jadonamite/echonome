@@ -7,6 +7,7 @@ import type { Address } from "viem";
 import type { EchoView, CopyLinkView } from "@/lib/queries";
 import { AccountPanel } from "@/components/account-panel";
 import { shortMarket, sideLabel, timeAgo } from "@/lib/format";
+import { traderName } from "@/lib/trader-names";
 
 /**
  * What a follower actually needs to see: what was placed for them, how it turned out in
@@ -139,7 +140,7 @@ export default function MePage() {
                     href={`/traders/${link.traderId}`}
                     className="text-sm text-ink underline-offset-4 hover:underline"
                   >
-                    {link.traderLabel}
+                    {traderName(link.traderLabel)}
                   </Link>
                   <p className="mt-0.5 text-xs text-ink-3">
                     {Math.round(link.sizeFraction * 100)}% of their size ·{" "}
@@ -198,7 +199,7 @@ export default function MePage() {
                     <p className="text-sm text-ink">{plainLanguage(echo)}</p>
                     <p className="font-mono text-xs text-ink-3 tnum">
                       {echo.marketLabel ?? shortMarket(echo.marketId)} · following{" "}
-                      {echo.traderLabel} ·{" "}
+                      {traderName(echo.traderLabel)} ·{" "}
                       {timeAgo(echo.createdAt)}
                     </p>
                   </div>

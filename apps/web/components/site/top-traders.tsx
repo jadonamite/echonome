@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { LeaderboardEntry, ReliabilityBucket } from "@/lib/queries";
+import { traderName } from "@/lib/trader-names";
 
 /**
  * The three-card row that opens the dark act, built to the proportions in
@@ -125,7 +126,7 @@ export function TopTraders({ traders }: { traders: LeaderboardEntry[] }) {
             >
               {RANGES.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.label}
+                  {traderName(r.label)}
                 </option>
               ))}
             </select>
@@ -172,7 +173,7 @@ export function TopTraders({ traders }: { traders: LeaderboardEntry[] }) {
 
                 <div className="px-2 pb-3 pt-4 text-center">
                   <p className="text-lg font-semibold tracking-tight">
-                    {entry.label.replace(/\s*\(seed\)$/i, "")}
+                    {traderName(entry.label)}
                   </p>
                   <p className="mt-1.5 flex items-center justify-center gap-1.5 font-mono text-[11px] tabular-nums text-ink-3">
                     <span

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { LeaderboardEntry, TraceTick } from "@/lib/queries";
+import { traderName } from "@/lib/trader-names";
+import { EdgeSpark } from "./edge-spark";
 
 /**
  * The five squircles scattered around the hero headline.
@@ -41,57 +43,20 @@ const PLACEMENTS: Placement[] = [
 ];
 
 /**
- * Tone carries its own foreground. The trace inside a tile cannot use the app's --good and
- * --critical, because those are tuned for one dark surface and this component renders on four
- * different grounds including chartreuse. Right and wrong are drawn instead as opaque and
- * ghosted foreground, which survives every ground and keeps colour from being the only
- * channel: each tick still carries its own title.
+ * Tone carries its own foreground. A tile's line cannot use the app's --good and --critical,
+ * because those are tuned for one dark surface and this component renders on four different
+ * grounds including chartreuse. Each tone names the ink its own contents draw in.
  */
 const TONES: Record<Tone, { className: string; fg: string; muted: string }> = {
   ink: { className: "bg-tile-ink text-white", fg: "#ffffff", muted: "rgba(255,255,255,0.3)" },
   bone: { className: "bg-tile-bone text-tile-ink", fg: "#0a0a0a", muted: "rgba(10,10,10,0.24)" },
   indigo: { className: "bg-tile-gradient text-white", fg: "#ffffff", muted: "rgba(255,255,255,0.34)" },
-  chartreuse: { className: "bg-tile-chartreuse text-tile-ink", fg: "#0a0a0a", muted: "rgba(10,10,10,0.26)" },
+  chartreuse: {
+    className: "bg-tile-chartreuse text-tile-ink",
+    fg: "#0a0a0a",
+    muted: "rgba(10,10,10,0.26)",
+  },
 };
-
-function TileTrace({ ticks, fg, muted }: { ticks: TraceTick[]; fg: string; muted: string }) {
-  const shown = ticks.slice(-28);
-  if (shown.length === 0) return null;
-
-  const w = 3;
-  const gap = 2;
-  const width = shown.length * (w + gap) - gap;
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} 16`}
-      width="100%"
-      height="16"
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`${shown.length} recent calls, oldest to newest`}
-      className="block"
-    >
-      {shown.map((tick, i) => {
-        const right = tick.wasRight === true;
-        const open = tick.wasRight === null;
-        return (
-          <rect
-            key={i}
-            x={i * (w + gap)}
-            y={open ? 6 : right ? 0 : 8}
-            width={w}
-            height={open ? 4 : 8}
-            rx={1}
-            fill={right ? fg : muted}
-          >
-            <title>{open ? "Still open" : right ? "Right" : "Wrong"}</title>
-          </rect>
-        );
-      })}
-    </svg>
-  );
-}
 
 function edgeLabel(entry: LeaderboardEntry): string {
   if (entry.edge === null) return "Warming up";
@@ -121,7 +86,7 @@ function Tile({
           {entry.isSeed ? "Seed" : "Trader"}
         </p>
         <p className="mt-1 truncate text-[13px] font-semibold leading-tight sm:text-sm">
-          {entry.label.replace(/\s*\(seed\)$/i, "")}
+          {traderName(entry.label)}
         </p>
       </div>
 
@@ -129,7 +94,7 @@ function Tile({
         {!compact && (
           <p className="mb-2 font-mono text-[11px] tabular-nums opacity-80">{edgeLabel(entry)}</p>
         )}
-        <TileTrace ticks={ticks} fg={t.fg} muted={t.muted} />
+        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} />
       </div>
     </Link>
   );

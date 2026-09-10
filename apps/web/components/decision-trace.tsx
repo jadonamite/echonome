@@ -1,4 +1,4 @@
-import type { TraceTick } from "@/lib/queries";
+import type { Side } from "@/lib/queries";
 
 /**
  * A trader's recent calls as a strip of ticks, oldest to newest — right, wrong, or still
@@ -15,12 +15,25 @@ const STATE = {
   open: { fill: "var(--edge)", label: "Still open" },
 } as const;
 
-function stateOf(tick: TraceTick): keyof typeof STATE {
+/**
+ * Only the fields this component actually draws with.
+ *
+ * Narrower than TraceTick on purpose: the strip colours each call by whether it landed, and
+ * has no use for what was paid. Taking the full type would force every caller building ticks
+ * by hand — the Echo Rank row, the profile — to carry a price they never read.
+ */
+export interface TraceMark {
+  side: Side;
+  settledOutcome: Side | null;
+  wasRight: boolean | null;
+}
+
+function stateOf(tick: TraceMark): keyof typeof STATE {
   if (tick.wasRight === null) return "open";
   return tick.wasRight ? "right" : "wrong";
 }
 
-export function DecisionTrace({ ticks, height = 22 }: { ticks: TraceTick[]; height?: number }) {
+export function DecisionTrace({ ticks, height = 22 }: { ticks: TraceMark[]; height?: number }) {
   if (ticks.length === 0) {
     return <p className="text-xs text-ink-3">No calls recorded yet.</p>;
   }

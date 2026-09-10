@@ -318,6 +318,16 @@ export interface TraceTick {
   side: Side;
   settledOutcome: Side | null;
   wasRight: boolean | null;
+  /**
+   * What they paid for the side they took, 0-1. `implied_probability` is stored in YES terms
+   * whichever side was bought, so a Down call's price is its complement — the same conversion
+   * the worker's calibration engine makes before scoring.
+   *
+   * Carried so a tile can plot cumulative edge rather than a win/loss counter: edge is the
+   * metric the whole product ranks on, and (outcome - price paid) summed over a trader's recent
+   * calls is exactly their running profit per unit staked.
+   */
+  pricePaid: number;
 }
 
 /**
@@ -327,9 +337,14 @@ export interface TraceTick {
  * N+1 that only shows up at scale is the kind that ships.
  */
 export async function getRecentTraces(perTrader = 40): Promise<Map<string, TraceTick[]>> {
-  const rows = await queryOrNull<{ trader_id: string; side: Side; settled_outcome: Side | null }>(
-    `SELECT trader_id, side, settled_outcome FROM (
-       SELECT d.trader_id, d.side, d.settled_outcome, d.created_at,
+  const rows = await queryOrNull<{
+    trader_id: string;
+    side: Side;
+    settled_outcome: Side | null;
+    implied_probability: string;
+  }>(
+    `SELECT trader_id, side, settled_outcome, implied_probability FROM (
+       SELECT d.trader_id, d.side, d.settled_outcome, d.implied_probability, d.created_at,
               row_number() OVER (PARTITION BY d.trader_id ORDER BY d.created_at DESC) AS rn
        FROM decision d
      ) ranked
@@ -341,10 +356,12 @@ export async function getRecentTraces(perTrader = 40): Promise<Map<string, Trace
   const traces = new Map<string, TraceTick[]>();
   for (const r of rows ?? []) {
     const ticks = traces.get(r.trader_id) ?? [];
+    const pUp = Number(r.implied_probability);
     ticks.push({
       side: r.side,
       settledOutcome: r.settled_outcome,
       wasRight: r.settled_outcome === null ? null : r.side === r.settled_outcome,
+      pricePaid: r.side === "up" ? pUp : 1 - pUp,
     });
     traces.set(r.trader_id, ticks);
   }
