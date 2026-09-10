@@ -84,7 +84,7 @@ function Hero({
       // box — but a bleed that is allowed to extend the document scrolls the whole page
       // sideways on a phone. Clipping keeps the bleed and drops the 10px of overflow it
       // was causing at 375px.
-      className="relative mx-auto min-h-[38rem] w-full max-w-7xl overflow-hidden px-6 pb-24 pt-10 sm:min-h-[36rem] sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:pb-40 lg:pt-16"
+      className="relative mx-auto min-h-[38rem] w-full max-w-7xl overflow-hidden px-6 pb-24 pt-10 sm:min-h-[36rem] sm:px-10 sm:pb-32 lg:min-h-[38rem] lg:overflow-visible lg:pb-40 lg:pt-16"
     >
       <TraderTilesScatter traders={traders} traces={traces} />
 

@@ -144,12 +144,12 @@ body {
    * of 307px is simply a much bigger corner than 22% of 132px. The eye reads the absolute
    * radius, not the ratio, so the big cards went blobby while the small ones stayed crisp.
    *
-   * The cap is Emeka Okafor's card — 164px, 36px corner — because that is the one that reads
-   * correctly. Every tile now lands between 14 and 36px and the set shares one corner
-   * character, while small tiles still scale rather than being forced to a radius half their
-   * own width.
+   * The cap is Emeka Okafor's card — 164px, 36px corner — and it is applied ONLY below lg,
+   * further down this file. Laptop keeps the flat 22% it has always had, because that is the
+   * look the hero is signed off on; capping it there changed the largest card's corner from
+   * 68px to 36px, which is a visible change to a view that was meant to stay put.
    */
-  --tile-radius: clamp(14px, 22%, 36px);
+  --tile-radius: 22%;
 }
 
 /* Full-bleed pages own their own scroll behaviour; anchor links should ease. */
@@ -240,6 +240,14 @@ html {
  * styles cannot carry media queries, and Tailwind's scanner only sees class strings written
  * out in full, so building `left-[19%]` from an array would silently produce nothing.
  */
+/* Below lg only. See the note on --tile-radius: laptop keeps the flat 22%. */
+@media (max-width: 1023.98px) {
+  .hero-tile,
+  .hero-tile > a {
+    border-radius: clamp(14px, 22%, 36px);
+  }
+}
+
 .hero-tile {
   position: absolute;
   pointer-events: auto;
