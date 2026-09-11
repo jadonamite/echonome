@@ -16,8 +16,21 @@ const SHANNON_RPC =
 
 export const maxDuration = 60;
 
-const DEFAULT_OPERATOR_KEY =
-  "0x19e0bede9097618b1e4c1d893121bcf0f56538d30b221ec3e86966b34797a0f2" as const;
+/**
+ * NO hardcoded fallback key, and there must never be one again.
+ *
+ * A previous version carried the operator's private key as a literal here so the faucet
+ * would work without configuration. That key derives to the executor address set on every
+ * follower's EchoAccount, and this file is in a public repository — so it was published,
+ * and has been rotated. DEPLOYMENT.md is explicit that no private key belongs in the web
+ * app: everything that can run a build can read it. A faucet that is unconfigured should
+ * say so and refuse, not quietly sign with a key that anyone can now read out of git.
+ */
+function operatorKey(): `0x${string}` | null {
+  const key = process.env.OPERATOR_PRIVATE_KEY;
+  if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) return null;
+  return key as `0x${string}`;
+}
 
 /**
  * Faucet endpoint for Somnia Shannon testnet.
@@ -36,15 +49,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const operatorKey = (process.env.OPERATOR_PRIVATE_KEY ||
-      DEFAULT_OPERATOR_KEY) as `0x${string}`;
+    const key = operatorKey();
+    if (!key) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "The faucet is not configured on this deployment. Use the official Somnia faucet.",
+        },
+        { status: 503 }
+      );
+    }
 
     const publicClient = createPublicClient({
       chain: somniaShannon,
       transport: http(SHANNON_RPC),
     });
 
-    const account = privateKeyToAccount(operatorKey);
+    const account = privateKeyToAccount(key);
     const walletClient = createWalletClient({
       account,
       chain: somniaShannon,
