@@ -329,7 +329,7 @@ export function OnboardingModal() {
               <div className="flex items-center justify-between gap-3 rounded-xl border border-rule bg-plane/50 p-3">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-ink">Somnia Gas (STT)</p>
-                  <p className="text-[11px] text-ink-3">Dispenses 1.0 STT for testnet contract deployment.</p>
+                  <p className="text-[11px] text-ink-3">Dispenses 5.0 STT for testnet contract deployment and gas.</p>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button
@@ -344,7 +344,7 @@ export function OnboardingModal() {
                         Claiming…
                       </>
                     ) : (
-                      "Claim 1 STT"
+                      "Claim 5 STT"
                     )}
                   </button>
                   <a

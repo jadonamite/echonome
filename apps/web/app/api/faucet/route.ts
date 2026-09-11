@@ -16,7 +16,7 @@ const SHANNON_RPC =
 
 /**
  * Faucet endpoint for Somnia Shannon testnet.
- * Dispenses 1 STT to a requested address so the user can deploy their EchoAccount
+ * Dispenses 5 STT to a requested address so the user can deploy their EchoAccount
  * and execute testnet transactions without needing an external faucet step.
  */
 export async function POST(req: Request) {
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
 
     // Check operator balance
     const operatorBalance = await publicClient.getBalance({ address: account.address });
-    if (operatorBalance < parseEther("1")) {
+    if (operatorBalance < parseEther("5")) {
       return NextResponse.json(
         {
           ok: false,
@@ -67,9 +67,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check user balance — if user already has more than 5 STT, avoid draining the faucet
+    // Check user balance — if user already has more than 15 STT, avoid draining the faucet
     const userBalance = await publicClient.getBalance({ address: targetAddress as Address });
-    if (userBalance >= parseEther("5")) {
+    if (userBalance >= parseEther("15")) {
       return NextResponse.json({
         ok: true,
         alreadyFunded: true,
@@ -78,10 +78,10 @@ export async function POST(req: Request) {
       });
     }
 
-    // Dispense 1 STT
+    // Dispense 5 STT
     const hash = await walletClient.sendTransaction({
       to: targetAddress as Address,
-      value: parseEther("1"),
+      value: parseEther("5"),
     });
 
     await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
@@ -91,9 +91,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       hash,
-      dispensed: "1.0 STT",
+      dispensed: "5.0 STT",
       balance: formatEther(newBalance),
-      message: "Successfully funded with 1.0 STT gas.",
+      message: "Successfully funded with 5.0 STT gas.",
     });
   } catch (err: unknown) {
     const msg = (err as Error)?.message ?? "Faucet disbursement failed.";
