@@ -30,6 +30,27 @@ import { traderName } from "@/lib/trader-names";
  * drift from the product. And no claim appears that is not checkable somewhere else, so each
  * one names the script, contract or page that proves it.
  */
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Echonome · Copy the traders who are right when they say they are",
+  description:
+    "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+  openGraph: {
+    title: "Echonome · Copy the traders who are right when they say they are",
+    description:
+      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+    url: "https://echonome.namite.xyz",
+    siteName: "Echonome",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Echonome · Copy the traders who are right when they say they are",
+    description:
+      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+  },
+};
+
 export const dynamic = "force-dynamic";
 
 export default async function LandingPage() {

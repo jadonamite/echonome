@@ -36,17 +36,26 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://echonome.xyz"),
+  metadataBase: new URL("https://echonome.namite.xyz"),
   title: {
-    default: "Echonome",
+    default: "Echonome · Copy the traders who are right when they say they are",
     template: "%s · Echonome",
   },
   description:
-    "Copy-trading for DreamDEX Event Contracts, ranked by calibration instead of profit. Your funds stay in an account only you can withdraw from.",
+    "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
   openGraph: {
-    title: "Echonome",
+    title: "Echonome · Copy the traders who are right when they say they are",
     description:
-      "Copy the traders who are right when they say they are. Ranked by calibration, not profit.",
+      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+    url: "https://echonome.namite.xyz",
+    siteName: "Echonome",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Echonome · Copy the traders who are right when they say they are",
+    description:
+      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
   },
 };
 
