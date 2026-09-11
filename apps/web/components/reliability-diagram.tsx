@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { ReliabilityBucket } from "@echonome/shared";
 
 /**
@@ -36,6 +39,8 @@ function radius(sampleCount: number, max: number): number {
 }
 
 export function ReliabilityDiagram({ buckets }: { buckets: ReliabilityBucket[] }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (buckets.length === 0) {
     return (
       <div className="border border-rule bg-surface px-5 py-8">
@@ -48,6 +53,10 @@ export function ReliabilityDiagram({ buckets }: { buckets: ReliabilityBucket[] }
       </div>
     );
   }
+
+  const previewLimit = Math.max(3, Math.round(buckets.length * 0.3));
+  const hasMore = buckets.length > previewLimit;
+  const visibleBuckets = expanded || !hasMore ? buckets : buckets.slice(0, previewLimit);
 
   const maxSample = Math.max(...buckets.map((b) => b.sampleCount));
   const gridlines = [0, 0.25, 0.5, 0.75, 1];
@@ -144,7 +153,7 @@ export function ReliabilityDiagram({ buckets }: { buckets: ReliabilityBucket[] }
             </tr>
           </thead>
           <tbody className="divide-y divide-rule bg-surface">
-            {buckets.map((b) => {
+            {visibleBuckets.map((b) => {
               const claimed = b.bucket + 0.05;
               const gap = b.observedFrequency - claimed;
               return (
@@ -162,6 +171,25 @@ export function ReliabilityDiagram({ buckets }: { buckets: ReliabilityBucket[] }
             })}
           </tbody>
         </table>
+
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="flex w-full items-center justify-center gap-2 border-t border-rule bg-surface-raised px-4 py-2.5 text-xs font-mono uppercase tracking-wider text-ink-2 transition-colors hover:bg-surface hover:text-ink"
+          >
+            <span>{expanded ? "Show fewer bands" : `Show full breakdown (${buckets.length} bands)`}</span>
+            <svg
+              width="10"
+              height="6"
+              viewBox="0 0 10 6"
+              fill="none"
+              className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+            >
+              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );

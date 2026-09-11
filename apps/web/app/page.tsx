@@ -12,6 +12,8 @@ import { RedirectWhenConnected } from "@/components/site/landing-connect";
 import { TraderTilesScatter } from "@/components/site/trader-tiles";
 import { TopTraders } from "@/components/site/top-traders";
 import { SiteFooter } from "@/components/site/footer";
+import { CannotFolder } from "@/components/site/cannot-folder";
+import { LimitsStackedCards } from "@/components/site/limits-stacked-cards";
 import { formatBrier } from "@/lib/format";
 import { traderName } from "@/lib/trader-names";
 
@@ -53,12 +55,11 @@ export default async function LandingPage() {
       <div className="dotgrid dotgrid-dark bg-plane">
         <TopTraders traders={traders} />
         <ProofStrip stats={stats} />
+        <SocialFeed />
         <Calibration highlight={highlight} />
         <Custody />
         <Controls />
         <HowItWorks />
-        <SeedTraders />
-        <Risk />
         <SiteFooter />
       </div>
     </>
@@ -91,15 +92,15 @@ function Hero({
       {/* The reference centres its type in a narrow column and lets the tiles hold the
           outer thirds of the canvas. The max-width here is what keeps the headline from
           running underneath them. */}
-      <div className="relative z-10 mx-auto max-w-[13rem] text-center sm:max-w-md lg:max-w-2xl">
+      <div className="relative z-10 mx-auto max-w-[17rem] text-center sm:max-w-md lg:max-w-2xl">
         <h1 className="mx-auto text-[clamp(1.6rem,6.2vw,4.5rem)] font-bold leading-[1.02] tracking-[-0.035em] text-ink lg:leading-[0.98]">
-          Copy the traders who are right when they say they are
+          Copy pure edge on prediction markets
         </h1>
 
-        <p className="mx-auto mt-7 max-w-[21rem] text-[13px] leading-[1.65] text-ink-3">
-          Ranked by calibration, never by profit. Follow one and your own on-chain account
-          places the trade, at the size you set. We hold a key that cannot withdraw, and a
-          script in the repository proves it against the live chain.
+        <p className="mx-auto mt-7 max-w-[24rem] text-[13px] leading-[1.65] text-ink-3">
+          Non-custodial copy-trading powered by mathematical calibration. Mirror verified
+          forecasters on Somnia in real time, with your capital locked in your own smart
+          account.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -109,12 +110,12 @@ function Hero({
           >
             See the Echo Rank
           </Link>
-          <a
-            href="#custody"
+          <Link
+            href="/feed"
             className="rounded-full border border-edge px-7 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-white"
           >
-            How custody works
-          </a>
+            Live trade feed
+          </Link>
         </div>
       </div>
     </section>
@@ -186,11 +187,76 @@ function Eyebrow({ children, tone = "muted" }: { children: React.ReactNode; tone
   );
 }
 
-function Heading({ children }: { children: React.ReactNode }) {
+function Heading({ children, centered = false }: { children: React.ReactNode; centered?: boolean }) {
   return (
-    <h2 className="mt-5 max-w-3xl text-[clamp(1.9rem,3.6vw,3rem)] font-bold leading-[1.03] tracking-[-0.03em]">
+    <h2
+      className={`mt-5 max-w-3xl text-[clamp(1.9rem,3.6vw,3rem)] font-bold leading-[1.03] tracking-[-0.03em] ${
+        centered ? "mx-auto text-center" : ""
+      }`}
+    >
       {children}
     </h2>
+  );
+}
+
+function SocialFeed() {
+  return (
+    <Band id="feed">
+      <Eyebrow>Live execution network</Eyebrow>
+      <Heading>Trade discovery meets instant on-chain execution.</Heading>
+
+      <div className="mt-10 grid gap-8 lg:grid-cols-2">
+        <p className="max-w-prose text-base leading-relaxed text-ink-2">
+          Every trade placed by top-calibrated forecasters broadcasts across the network the
+          millisecond it fills on Somnia. Inspect positions in real time, analyze the leader's
+          probability curve, and mirror orders before the window closes.
+        </p>
+        <p className="max-w-prose text-base leading-relaxed text-ink-2">
+          Collective intelligence meets automated execution. Gauge market sentiment with
+          on-chain bullish and bearish voting, engage in threaded thesis debate, and track
+          sub-second fills on live testnet contracts.
+        </p>
+      </div>
+
+      <div className="mt-12 rounded-[22px] border border-rule bg-surface p-7 sm:p-10">
+        <div className="flex flex-col justify-between gap-4 border-b border-rule pb-6 sm:flex-row sm:items-center">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-wider text-accent">Protocol execution</p>
+            <h3 className="mt-1 text-xl font-semibold text-ink">High-frequency prediction flow</h3>
+          </div>
+          <Link
+            href="/feed"
+            className="inline-flex items-center justify-center rounded-full bg-ink px-6 py-2.5 text-sm font-medium text-plane transition-opacity hover:opacity-90"
+          >
+            Open the live feed
+          </Link>
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-rule/60 bg-surface-raised p-5">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-accent">Fill stream</p>
+            <p className="mt-2 text-base font-medium text-ink">Sub-second indexing</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-2">
+              Direct ingestion from Somnia Event Contracts, mapped to each trader's verified edge curve.
+            </p>
+          </div>
+          <div className="rounded-xl border border-rule/60 bg-surface-raised p-5">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-accent">Consensus</p>
+            <p className="mt-2 text-base font-medium text-ink">Directional sentiment</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-2">
+              Gauge community conviction on active markets before cadence windows settle.
+            </p>
+          </div>
+          <div className="rounded-xl border border-rule/60 bg-surface-raised p-5">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-accent">Autonomous mirrors</p>
+            <p className="mt-2 text-base font-medium text-ink">Deterministic lot sizing</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-2">
+              Follower orders scale to your allocation and execute directly on chain with verifiable receipts.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Band>
   );
 }
 
@@ -201,24 +267,20 @@ function Calibration({
 }) {
   return (
     <Band id="calibration">
-      <Eyebrow>Why calibration</Eyebrow>
-      <Heading>
-        A trader who is right 60 percent of the time is worth more than one who got lucky last
-        week.
-      </Heading>
+      <Eyebrow>The alpha metric</Eyebrow>
+      <Heading>PnL leaderboards are broken. We engineered the fix.</Heading>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          Profit and loss rewards whoever was recently lucky. Calibration asks a harder
-          question. When this trader says a market is 70 percent likely to go up, does it go up
-          70 percent of the time? That needs a sample rather than a story, it is checkable by
-          anyone reading the same public record we read, and no amount of conviction moves it.
+          Conventional copy-trading platforms reward gamblers on short-term lucky streaks that
+          inevitably blow up. Echonome ranks by statistical edge: the mathematical difference
+          between market prices and real-world outcomes. A forecaster only climbs if their
+          probability assessments systematically beat closing prices across verified sample sizes.
         </p>
         <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          Ranking is by edge, the mean of outcome minus price paid, which in a binary market is
-          exactly expected profit per unit staked. Nobody appears ranked until twenty of their
-          decisions have resolved. Below that they are shown warming up, with the count visible,
-          rather than hidden until the number flatters them.
+          The leaderboard sorts on the conservative lower bound of a 95 percent confidence
+          interval. Temporary variance is discounted; true mathematical edge dominates.
+          Traders below twenty resolved decisions are categorized as warming up.
         </p>
       </div>
 
@@ -312,22 +374,6 @@ function HighlightPanel({
   );
 }
 
-/**
- * Every line in CANNOT is an assertion in `packages/contracts/scripts/verifyCustody.ts`, which
- * runs against Somnia Shannon and fails loudly if any one of them stops being true. Nothing
- * goes in this list that the script does not test.
- */
-const CANNOT = [
-  "Withdraw your collateral",
-  "Withdraw your outcome tokens",
-  "Raise the caps you set",
-  "Extend its own expiry",
-  "Add a market you did not allow",
-  "Act after you pause the account",
-  "Act after the expiry date passes",
-  "Act after you revoke the key",
-];
-
 function Custody() {
   return (
     <Band id="custody">
@@ -349,71 +395,27 @@ function Custody() {
         </p>
       </div>
 
-      <ul className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {CANNOT.map((item) => (
-          <li key={item} className="rounded-2xl border border-rule bg-surface px-5 py-6">
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-accent">Cannot</p>
-            <p className="mt-3 text-base leading-snug text-ink">{item}</p>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-ink-3">
-        <code className="rounded-lg bg-surface px-3 py-2 font-mono text-ink-2">
-          npm run verify:custody -w @echonome/contracts
-        </code>
-        <span>Read-only. Runs against Shannon. Takes about a minute.</span>
-      </div>
+      <CannotFolder />
     </Band>
   );
 }
 
-const CONTROLS = [
-  {
-    name: "Per-order cap",
-    body: "The most a single echo can ever commit, whatever the trader you follow decides to do.",
-  },
-  {
-    name: "Lifetime budget",
-    body: "The most the account will commit in total, across every echo it ever places.",
-  },
-  {
-    name: "Expiry",
-    body: "The date our key stops working. It runs out on its own, whether or not you remember to revoke it.",
-  },
-  {
-    name: "Pause",
-    body: "One switch. Effective on the next block, and it needs nothing from us to take hold.",
-  },
-  {
-    name: "Market allowlist",
-    body: "Echoes only reach the pools you have permitted. Everything else reverts.",
-  },
-  {
-    name: "Revoke",
-    body: "Removes our key entirely. Your funds do not move, because they were never ours to move.",
-  },
-];
-
 function Controls() {
   return (
     <Band id="controls">
-      <Eyebrow>Your limits</Eyebrow>
-      <Heading>The controls are the product.</Heading>
+      <div className="text-center max-w-3xl mx-auto">
+        <Eyebrow>Your limits</Eyebrow>
+        <Heading centered>The controls are the product.</Heading>
 
-      <p className="mt-8 max-w-prose text-base leading-relaxed text-ink-2">
-        These are not settings buried behind an advanced tab. They are the terms you set before
-        anything is copied, they are enforced by the contract rather than by our server, and a
-        trade that would break one of them fails on chain instead of asking us nicely.
-      </p>
+        <p className="mt-6 max-w-prose mx-auto text-base leading-relaxed text-ink-2">
+          These are not settings buried behind an advanced tab. They are the terms you set before
+          anything is copied, they are enforced by the contract rather than by our server, and a
+          trade that would break one of them fails on chain instead of asking us nicely.
+        </p>
+      </div>
 
-      <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {CONTROLS.map((control) => (
-          <div key={control.name} className="rounded-2xl border border-rule bg-surface px-6 py-8">
-            <h3 className="text-xl font-semibold tracking-tight">{control.name}</h3>
-            <p className="mt-3 text-sm leading-relaxed text-ink-2">{control.body}</p>
-          </div>
-        ))}
+      <div className="mt-12 flex justify-center w-full">
+        <LimitsStackedCards />
       </div>
     </Band>
   );
@@ -422,19 +424,19 @@ function Controls() {
 const STEPS = [
   {
     title: "Deploy your account",
-    body: "We show you its address before you pay to create it. The address is computed from your own wallet rather than assigned by us, so a second deploy can never quietly produce a second account.",
+    body: "We display your exact contract address before you pay to create it. Computed via CREATE2 from your wallet, a retried transaction cannot accidentally spawn a second account.",
   },
   {
-    title: "Fund it and set your limits",
-    body: "Move test USDC into the account and state your per-order cap, your lifetime budget and the date our key expires. This is the screen where you decide how much you are willing to lose.",
+    title: "Fund and set limits",
+    body: "Deposit testnet collateral and specify your per-order cap, lifetime budget, and key expiry date. Your constraints are enforced by the contract, not by our servers.",
   },
   {
-    title: "Pick a trader",
-    body: "Choose from the Echo Rank and set the fraction of their size you want to take. A trader below twenty resolved decisions is shown warming up, not ranked.",
+    title: "Select a leader",
+    body: "Browse the Echo Rank or discover active traders on the live feed. Choose your copy size fraction. Traders under twenty resolved calls remain labelled as warming up.",
   },
   {
-    title: "Watch the echoes settle",
-    body: "Every outcome reads as a sentence, including the ones that failed, with the reason attached. Nothing happening is the one result a copy-trading product must never leave unexplained.",
+    title: "Track echoes in real time",
+    body: "Orders execute automatically into the approved series. Every outcome displays as a sentence with transaction receipts and explicit failure reasons if a trade is declined.",
   },
 ];
 
@@ -459,62 +461,3 @@ function HowItWorks() {
   );
 }
 
-function SeedTraders() {
-  return (
-    <Band>
-      <Eyebrow>Disclosure</Eyebrow>
-      <Heading>Some of the traders on this board are ours.</Heading>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-2">
-        <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          The board launched with strategies we run ourselves. A calibration score needs
-          resolved decisions before it means anything, and an empty Echo Rank has none, so we
-          supplied the first ones rather than waiting or faking them.
-        </p>
-        <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          They are labelled as ours everywhere they appear. They trade real markets with real
-          money at risk, they are scored by exactly the same maths as everyone else, and some of
-          them are performing badly. You can read the whole record.
-        </p>
-      </div>
-    </Band>
-  );
-}
-
-function Risk() {
-  return (
-    <Band id="risk">
-      <Eyebrow tone="warn">Risk</Eyebrow>
-      <Heading>What can go wrong, before you decide.</Heading>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-2">
-        <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          Event Contracts are binary. A position resolves at its full value or at nothing, with
-          no partial outcome in between. Copying a trader means taking that risk on their
-          judgment rather than your own, and a score measures decisions that have already
-          resolved. It carries no obligation toward the next one.
-        </p>
-        <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          Echonome runs on Somnia Shannon testnet. The custody model is proven on chain and the
-          contract is in the open, but neither the contracts nor this site have had a security
-          audit or a legal review. We will keep saying so on this page until they have.
-        </p>
-      </div>
-
-      <div className="mt-12 flex flex-wrap gap-3">
-        <Link
-          href="/echo-rank"
-          className="rounded-full bg-ink px-7 py-3.5 text-sm font-medium text-plane transition-opacity hover:opacity-90"
-        >
-          See the Echo Rank
-        </Link>
-        <Link
-          href="/terms"
-          className="rounded-full border border-edge px-7 py-3.5 text-sm font-medium transition-colors hover:bg-surface"
-        >
-          Read the terms
-        </Link>
-      </div>
-    </Band>
-  );
-}

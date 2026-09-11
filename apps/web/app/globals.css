@@ -267,34 +267,39 @@ html {
   transform: rotate(0deg) !important;
 }
 
-/* Phone: the tightest the composition goes before it stops being readable. */
-.hero-tile-1 { top: 3%;  left: -7%;   width: 96px;  height: 96px;  transform: rotate(-4deg); }
-.hero-tile-2 { top: 24%; left: -13%;  width: 110px; height: 110px; transform: rotate(3deg); }
-.hero-tile-3 { top: 67%; left: -9%;   width: 114px; height: 114px; transform: rotate(-2deg); }
-.hero-tile-4 { top: 6%;  right: -9%;  width: 100px; height: 100px; transform: rotate(5deg); }
-.hero-tile-5 { top: 54%; right: -13%; width: 124px; height: 124px; transform: rotate(-3deg); }
+/*
+ * Hero squircle cards: identical spatial hierarchy, consistent relative size ratio,
+ * and scaled to fit the three major viewports without collision or clipping.
+ *
+ * Size ratio:
+ *   Tile 1 (top-left, ink):            1.00x (base anchor)
+ *   Tile 4 (top-right, indigo):        1.15x
+ *   Tile 2 (mid-left, ink):            1.40x
+ *   Tile 3 (bottom-left, bone):        1.65x
+ *   Tile 5 (bottom-right, chartreuse): 2.10x (dominant anchor)
+ */
 
-/* Tablet: large enough to carry the figure and the name again. */
+/* 1. Mobile (< 768px): clean positive coordinates, proportional sizing, no text obstruction */
+.hero-tile-1 { top: 2%;  left: 2%;  width: clamp(58px, 15vw, 70px);   height: clamp(58px, 15vw, 70px);   transform: rotate(-3deg); }
+.hero-tile-2 { top: 27%; left: 1%;  width: clamp(78px, 20.5vw, 96px);  height: clamp(78px, 20.5vw, 96px);  transform: rotate(3deg); }
+.hero-tile-3 { top: 67%; left: 2%;  width: clamp(88px, 23.5vw, 110px); height: clamp(88px, 23.5vw, 110px); transform: rotate(-2deg); }
+.hero-tile-4 { top: 4%;  right: 2%; width: clamp(66px, 17.5vw, 82px);  height: clamp(66px, 17.5vw, 82px);  transform: rotate(4deg); }
+.hero-tile-5 { top: 50%; right: 1%; width: clamp(110px, 29vw, 138px);  height: clamp(110px, 29vw, 138px);  transform: rotate(-3deg); }
+
+/* 2. Tablet (768px - 1023px): scaled to tablet canvas with generous headline clearance */
 @media (min-width: 768px) {
-  .hero-tile-1 { top: 5%;  left: 2%;   width: 104px; height: 104px; }
-  .hero-tile-2 { top: 28%; left: 0%;   width: 128px; height: 128px; }
-  .hero-tile-3 { top: 66%; left: 3%;   width: 136px; height: 136px; }
-  .hero-tile-4 { top: 9%;  right: 2%;  width: 112px; height: 112px; }
-  .hero-tile-5 { top: 54%; right: 0%;  width: 156px; height: 156px; }
+  .hero-tile-1 { top: 4%;  left: 3%;  width: 82px;  height: 82px;  transform: rotate(-3deg); }
+  .hero-tile-2 { top: 28%; left: 1%;  width: 114px; height: 114px; transform: rotate(3deg); }
+  .hero-tile-3 { top: 65%; left: 4%;  width: 132px; height: 132px; transform: rotate(-2deg); }
+  .hero-tile-4 { top: 6%;  right: 3%; width: 94px;  height: 94px;  transform: rotate(4deg); }
+  .hero-tile-5 { top: 48%; right: 1%; width: 168px; height: 168px; transform: rotate(-3deg); }
 }
 
-/*
- * Laptop: the reference's own placement and proportions, untouched.
- *
- * These were briefly reduced to about three quarters and put back. The largest card crowding
- * the headline is a function of the corner radius and the hero's height, both fixed elsewhere,
- * not of the tile being too big — and shrinking it cost the composition the scale the reference
- * is built on.
- */
+/* 3. Desktop (>= 1024px): framed around centered headline, Tile 1 cleared from the 'C' in Copy */
 @media (min-width: 1024px) {
-  .hero-tile-1 { top: 6%;  left: 19%;   width: clamp(96px, 8.2vw, 124px);   height: clamp(96px, 8.2vw, 124px); }
-  .hero-tile-2 { top: 30%; left: 3.5%;  width: clamp(132px, 13vw, 196px);   height: clamp(132px, 13vw, 196px); }
-  .hero-tile-3 { top: 66%; left: 15%;   width: clamp(140px, 15vw, 224px);   height: clamp(140px, 15vw, 224px); }
-  .hero-tile-4 { top: 11%; right: 6%;   width: clamp(110px, 10vw, 152px);   height: clamp(110px, 10vw, 152px); }
-  .hero-tile-5 { top: 50%; right: 1.5%; width: clamp(168px, 19.5vw, 292px); height: clamp(168px, 19.5vw, 292px); }
+  .hero-tile-1 { top: 4%;  left: 5%;   width: clamp(96px, 7.5vw, 112px);   height: clamp(96px, 7.5vw, 112px);   transform: rotate(-3deg); }
+  .hero-tile-2 { top: 29%; left: 2%;   width: clamp(128px, 10.5vw, 160px); height: clamp(128px, 10.5vw, 160px); transform: rotate(3deg); }
+  .hero-tile-3 { top: 65%; left: 6%;   width: clamp(144px, 12.5vw, 185px); height: clamp(144px, 12.5vw, 185px); transform: rotate(-2deg); }
+  .hero-tile-4 { top: 7%;  right: 5%;  width: clamp(106px, 8.5vw, 130px);  height: clamp(106px, 8.5vw, 130px);  transform: rotate(4deg); }
+  .hero-tile-5 { top: 48%; right: 1.5%; width: clamp(170px, 16vw, 235px);   height: clamp(170px, 16vw, 235px);   transform: rotate(-3deg); }
 }

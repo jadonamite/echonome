@@ -77,31 +77,27 @@ function Tile({
   return (
     <Link
       href={`/traders/${entry.id}`}
-      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-2 md:p-3 lg:p-4 ${t.className}`}
+      className={`flex h-full w-full flex-col justify-between overflow-hidden rounded-tile p-1.5 sm:p-2.5 md:p-3 lg:p-4 ${t.className}`}
     >
-      {/*
-        All four pieces at every size — face, name, figure, curve. The type scales instead of
-        the content disappearing: a card that shows only a face and a line on a phone is not
-        the card the desktop shows, and the phone tier is sized (96-124px) to carry the lot.
-      */}
-      <div className="flex min-w-0 items-start gap-1.5 md:gap-2.5">
-        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={22} className="md:hidden" />
+      <div className="flex min-w-0 items-start gap-1 sm:gap-1.5 md:gap-2.5">
+        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={18} className="sm:hidden" />
+        <TraderAvatar address={entry.address} name={traderName(entry.label)} size={22} className="hidden sm:block md:hidden" />
         <TraderAvatar address={entry.address} name={traderName(entry.label)} size={26} className="hidden md:block" />
         <div className="min-w-0">
-          <p className="truncate text-[8px] font-medium uppercase tracking-[0.14em] opacity-65 md:text-[9px] lg:text-[11px]">
-            {entry.isSeed ? "Seed" : "Trader"}
+          <p className="hidden sm:block truncate text-[8px] font-medium uppercase tracking-[0.14em] opacity-65 md:text-[9px] lg:text-[11px]">
+            {entry.isSeed ? "Benchmark" : "Trader"}
           </p>
-          <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight md:text-[12px] lg:text-sm">
+          <p className="truncate text-[9px] font-semibold leading-tight sm:mt-0.5 sm:text-[10px] md:text-[12px] lg:text-sm">
             {traderName(entry.label)}
           </p>
         </div>
       </div>
 
-      <div className="mt-2 lg:mt-3">
-                  <p className="mb-1 truncate font-mono text-[8px] tabular-nums opacity-80 md:mb-1.5 md:text-[10px] lg:mb-2 lg:text-[11px]">
-            {edgeLabel(entry)}
-          </p>
-        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={18} />
+      <div className="mt-1 sm:mt-2 lg:mt-3">
+        <p className="mb-0.5 truncate font-mono text-[7px] tabular-nums opacity-80 sm:mb-1 sm:text-[8px] md:mb-1.5 md:text-[10px] lg:mb-2 lg:text-[11px]">
+          {edgeLabel(entry)}
+        </p>
+        <EdgeSpark ticks={ticks} fg={t.fg} muted={t.muted} height={14} />
       </div>
     </Link>
   );

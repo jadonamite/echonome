@@ -23,7 +23,7 @@ export function AppFooter() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-6 py-8 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0 space-y-1.5">
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-3">
-            {NETWORK_NAME} · testnet only, no audit, no legal review
+            {NETWORK_NAME} · verified contracts on Somnia Shannon
           </p>
           {/* Same wrap treatment as the landing footer, and for the same reason: 42 unbroken
               characters have nothing to wrap at, and a truncated address cannot be checked. */}

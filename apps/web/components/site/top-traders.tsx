@@ -167,7 +167,7 @@ export function TopTraders({ traders }: { traders: LeaderboardEntry[] }) {
                       className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
                       style={{ color: tone.ink, background: tone.grid }}
                     >
-                      Ours
+                      Benchmark
                     </span>
                   )}
                 </div>

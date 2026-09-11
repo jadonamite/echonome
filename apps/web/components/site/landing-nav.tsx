@@ -17,7 +17,6 @@ const LINKS: NavItem[] = [
   { href: "/feed", label: "Feed" },
   { href: "/#how", label: "How it works" },
   { href: "/#custody", label: "Custody" },
-  { href: "/#risk", label: "Risk" },
 ];
 
 /**
