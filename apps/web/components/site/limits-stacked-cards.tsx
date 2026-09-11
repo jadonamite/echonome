@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Lock, ShieldCheck, ArrowRight, CaretRight, CaretLeft } from "@phosphor-icons/react";
 
 interface LimitCard {
   id: string;
@@ -19,133 +18,233 @@ interface LimitCard {
     subText: string;
     pillBg: string;
     pillText: string;
-    artAccent?: string;
   };
+  renderIllustration: () => React.ReactNode;
 }
 
 const LIMIT_CARDS: LimitCard[] = [
   {
     id: "cap",
-    tag: "LIMIT · 01",
+    tag: "LIMIT 01",
     badge: "Hard Stop",
     name: "Per-order cap",
     metric: "$50 USDC",
     metricSub: "Max per individual echo",
-    body: "The most a single echo can ever commit, regardless of whether the trader you copy wagers $500 or $50,000.",
-    footerTag: "EchoAccount.sol · checked on-chain",
+    body: "The most a single echo can commit, regardless of whether the trader you follow decides to wager $500 or $50,000.",
+    footerTag: "EchoAccount.sol · Bytecode Verified",
     theme: {
-      bg: "bg-gradient-to-br from-zinc-900 via-neutral-950 to-black",
-      border: "border-zinc-700/70",
+      bg: "bg-gradient-to-br from-[#121214] via-[#09090b] to-[#040405]",
+      border: "border-zinc-700/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)]",
       text: "text-white",
-      subText: "text-zinc-400",
+      subText: "text-zinc-300",
       pillBg: "bg-white/10 border border-white/20",
       pillText: "text-zinc-200",
-      artAccent: "metallic",
     },
+    // Liquid Chrome 3D Fluid Art (mirrors riCO chrome sculpture in uploaded_media_1789113831311.png)
+    renderIllustration: () => (
+      <div className="w-full h-24 my-2 flex items-center justify-between relative px-2">
+        <span className="font-sans text-[11px] uppercase tracking-widest text-zinc-500 font-bold">
+          riCO
+        </span>
+        <div className="relative w-40 h-20 flex items-center justify-center">
+          <svg viewBox="0 0 160 80" fill="none" className="w-full h-full drop-shadow-[0_10px_20px_rgba(255,255,255,0.15)]">
+            <defs>
+              <linearGradient id="chromeGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="25%" stopColor="#71717a" />
+                <stop offset="45%" stopColor="#18181b" />
+                <stop offset="65%" stopColor="#e4e4e7" />
+                <stop offset="85%" stopColor="#a1a1aa" />
+                <stop offset="100%" stopColor="#27272a" />
+              </linearGradient>
+              <linearGradient id="chromeGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.8" />
+                <stop offset="50%" stopColor="#ffffff" />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.6" />
+              </linearGradient>
+            </defs>
+            {/* Liquid chrome biomorphic body */}
+            <path
+              d="M30 40 C 25 15, 60 10, 80 25 C 105 10, 140 20, 135 45 C 130 65, 95 75, 75 58 C 55 70, 25 60, 30 40 Z"
+              fill="url(#chromeGrad1)"
+            />
+            {/* Liquid chrome specular crests */}
+            <path
+              d="M45 35 C 55 22, 85 24, 100 32 C 120 28, 125 40, 118 48 C 105 40, 75 35, 55 46 C 45 44, 42 38, 45 35 Z"
+              fill="url(#chromeGrad2)"
+              opacity="0.9"
+            />
+            <ellipse cx="68" cy="30" rx="14" ry="4" fill="#ffffff" opacity="0.8" />
+            <ellipse cx="108" cy="42" rx="10" ry="3" fill="#ffffff" opacity="0.75" />
+          </svg>
+        </div>
+        <span className="font-sans text-[11px] uppercase tracking-widest text-zinc-500 font-bold">
+          YR/25
+        </span>
+      </div>
+    ),
   },
   {
     id: "budget",
-    tag: "LIMIT · 02",
+    tag: "LIMIT 02",
     badge: "Ceiling",
     name: "Lifetime budget",
     metric: "$1,000 USDC",
     metricSub: "Total collateral ceiling",
-    body: "The maximum collateral your account will commit in total across every echo it ever executes before requiring your top-up.",
-    footerTag: "Collateral lock · reverts on overflow",
+    body: "The cumulative maximum collateral committed across every echo. Once reached, trading halts until you replenish.",
+    footerTag: "Smart Account Ceiling · Enforced on EVM",
     theme: {
-      bg: "bg-gradient-to-br from-red-600 via-rose-600 to-red-700",
-      border: "border-red-400/40",
+      bg: "bg-gradient-to-br from-[#e11d48] via-[#be123c] to-[#9f1239]",
+      border: "border-rose-400/50 shadow-[0_25px_60px_-15px_rgba(225,29,72,0.4)]",
       text: "text-white",
-      subText: "text-red-100",
+      subText: "text-rose-100",
       pillBg: "bg-white/20 border border-white/30",
       pillText: "text-white",
-      artAccent: "geometric",
     },
+    // Fluid Abstract White Emblem (mirrors the red card emblem in uploaded_media_1789113831311.png)
+    renderIllustration: () => (
+      <div className="w-full h-24 my-2 flex items-center justify-center relative">
+        <svg viewBox="0 0 120 70" fill="none" className="w-32 h-18 drop-shadow-[0_8px_16px_rgba(0,0,0,0.3)]">
+          <path
+            d="M20 45 C 10 30, 25 15, 45 20 C 60 25, 70 15, 85 18 C 105 22, 110 42, 95 55 C 80 62, 65 52, 50 56 C 35 60, 25 55, 20 45 Z"
+            fill="#ffffff"
+          />
+          <ellipse cx="62" cy="38" rx="16" ry="7" fill="#be123c" />
+        </svg>
+      </div>
+    ),
   },
   {
     id: "expiry",
-    tag: "LIMIT · 03",
+    tag: "LIMIT 03",
     badge: "Self-Destruct",
     name: "Expiry date",
     metric: "30 Days",
     metricSub: "Authority lapses automatically",
-    body: "The timestamp our key lapses. Execution authority expires automatically on chain unless you explicitly renew it.",
-    footerTag: "Timestamp expiry · block.timestamp",
+    body: "The exact timestamp our execution key dies. Authority lapses automatically on chain unless deliberately renewed.",
+    footerTag: "Timestamp Lock · block.timestamp",
     theme: {
-      bg: "bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500",
-      border: "border-yellow-300/60",
+      bg: "bg-gradient-to-br from-[#facc15] via-[#eab308] to-[#ca8a04]",
+      border: "border-yellow-200/60 shadow-[0_25px_60px_-15px_rgba(234,179,8,0.4)]",
       text: "text-zinc-950",
-      subText: "text-zinc-800",
-      pillBg: "bg-black/15 border border-black/20",
-      pillText: "text-zinc-900",
-      artAccent: "schwarz",
+      subText: "text-zinc-900/90",
+      pillBg: "bg-black/15 border border-black/25",
+      pillText: "text-zinc-950",
     },
+    // Schwarz Minimalist Geometric Art (mirrors Schwarz card in uploaded_media_1789113831311.png)
+    renderIllustration: () => (
+      <div className="w-full h-24 my-2 flex flex-col items-center justify-center relative">
+        <span className="font-sans text-3xl sm:text-4xl font-black tracking-tight text-zinc-950">
+          Schwarz
+        </span>
+        <div className="w-24 h-1 bg-zinc-950 mt-1.5 rounded-full" />
+      </div>
+    ),
   },
   {
     id: "pause",
-    tag: "LIMIT · 04",
+    tag: "LIMIT 04",
     badge: "Instant Freeze",
     name: "Pause switch",
     metric: "1 Block",
-    metricSub: "Instant halt without delay",
-    body: "Immediate on-chain halt. Takes effect on the very next block without requiring any interaction or approval from our servers.",
-    footerTag: "Emergency pause · sole custody",
+    metricSub: "Zero-latency circuit breaker",
+    body: "Immediate on-chain halt. Takes effect on the very next block without asking our servers or waiting for permissions.",
+    footerTag: "Atomic Circuit Breaker · 1 Transaction",
     theme: {
-      bg: "bg-gradient-to-br from-emerald-800 via-teal-900 to-emerald-950",
-      border: "border-emerald-500/40",
+      bg: "bg-gradient-to-br from-[#064e3b] via-[#065f46] to-[#022c22]",
+      border: "border-emerald-400/50 shadow-[0_25px_60px_-15px_rgba(5,150,105,0.35)]",
       text: "text-emerald-50",
-      subText: "text-emerald-200/80",
-      pillBg: "bg-emerald-500/20 border border-emerald-400/30",
+      subText: "text-emerald-100/90",
+      pillBg: "bg-emerald-400/20 border border-emerald-300/30",
       pillText: "text-emerald-200",
-      artAccent: "pattern",
     },
+    // Isometric Security Grid Graphic (mirrors green pattern card in uploaded_media_1789113831311.png)
+    renderIllustration: () => (
+      <div className="w-full h-24 my-2 flex items-center justify-center relative">
+        <svg viewBox="0 0 140 70" fill="none" className="w-36 h-18 opacity-85">
+          <path d="M70 10 L120 35 L70 60 L20 35 Z" stroke="#34d399" strokeWidth="1.6" fill="#065f46" />
+          <path d="M70 20 L105 35 L70 50 L35 35 Z" stroke="#6ee7b7" strokeWidth="1.2" fill="#047857" />
+          <line x1="70" y1="20" x2="70" y2="50" stroke="#a7f3d0" strokeWidth="1.5" />
+          <line x1="35" y1="35" x2="105" y2="35" stroke="#a7f3d0" strokeWidth="1.5" />
+        </svg>
+      </div>
+    ),
   },
   {
     id: "series",
-    tag: "LIMIT · 05",
-    badge: "Cadence Allowlist",
+    tag: "LIMIT 05",
+    badge: "Cadence Guard",
     name: "Series approval",
-    metric: "Hourly BTC & ETH",
-    metricSub: "Strict cadence boundary",
-    body: "You authorise an asset series once. Future windows roll over automatically while trades on unapproved markets revert on chain.",
-    footerTag: "Series allowlist · immutable filter",
+    metric: "BTC & ETH",
+    metricSub: "Hourly windows cadence",
+    body: "Authorise specific series cadence once. New windows roll over automatically while unapproved markets revert on chain.",
+    footerTag: "Series Allowlist · Strict Boundary",
     theme: {
-      bg: "bg-gradient-to-br from-indigo-600 via-purple-700 to-violet-900",
-      border: "border-indigo-400/40",
+      bg: "bg-gradient-to-br from-[#4f46e5] via-[#4338ca] to-[#312e81]",
+      border: "border-indigo-400/50 shadow-[0_25px_60px_-15px_rgba(79,70,229,0.35)]",
       text: "text-white",
-      subText: "text-purple-200",
-      pillBg: "bg-white/15 border border-white/25",
-      pillText: "text-purple-100",
-      artAccent: "violet",
+      subText: "text-indigo-100",
+      pillBg: "bg-white/20 border border-white/30",
+      pillText: "text-white",
     },
+    // Fluid Lavender Ribbon Wave Illustration
+    renderIllustration: () => (
+      <div className="w-full h-24 my-2 flex items-center justify-center relative">
+        <svg viewBox="0 0 140 70" fill="none" className="w-36 h-18">
+          <path
+            d="M10 45 C 30 15, 60 55, 90 25 C 110 5, 130 35, 135 45"
+            stroke="#a5b4fc"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <path
+            d="M15 52 C 35 22, 65 62, 95 32 C 115 12, 132 38, 137 50"
+            stroke="#c7d2fe"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+            opacity="0.7"
+          />
+        </svg>
+      </div>
+    ),
   },
   {
     id: "revoke",
-    tag: "LIMIT · 06",
+    tag: "LIMIT 06",
     badge: "Burn Key",
     name: "Revoke key",
-    metric: "100% Retained",
-    metricSub: "Permanent authority strip",
-    body: "Permanently strips our execution key from your contract. Your funds remain in your custody because we never hold them.",
-    footerTag: "Permanent revocation · zero residue",
+    metric: "Permanent",
+    metricSub: "Instant authority strip",
+    body: "Irrevocably strips our execution key from your contract. Your funds remain in your custody because we never hold them.",
+    footerTag: "Permanent Revocation · Zero Residue",
     theme: {
-      bg: "bg-gradient-to-br from-cyan-950 via-sky-950 to-zinc-950",
-      border: "border-cyan-500/50",
+      bg: "bg-gradient-to-br from-[#083344] via-[#0e4860] to-[#041a24]",
+      border: "border-cyan-400/50 shadow-[0_25px_60px_-15px_rgba(6,182,212,0.35)]",
       text: "text-cyan-50",
-      subText: "text-cyan-200/80",
-      pillBg: "bg-cyan-500/20 border border-cyan-400/30",
-      pillText: "text-cyan-300",
-      artAccent: "sonar",
+      subText: "text-cyan-100/90",
+      pillBg: "bg-cyan-400/20 border border-cyan-300/30",
+      pillText: "text-cyan-200",
     },
+    // Quantum Orbital Ring Illustration
+    renderIllustration: () => (
+      <div className="w-full h-24 my-2 flex items-center justify-center relative">
+        <svg viewBox="0 0 120 70" fill="none" className="w-32 h-18">
+          <ellipse cx="60" cy="35" rx="45" ry="18" stroke="#22d3ee" strokeWidth="1.6" strokeDasharray="6 3" />
+          <ellipse cx="60" cy="35" rx="28" ry="28" stroke="#67e8f9" strokeWidth="1.4" opacity="0.8" />
+          <circle cx="60" cy="35" r="7" fill="#67e8f9" />
+          <circle cx="95" cy="40" r="3" fill="#ffffff" />
+        </svg>
+      </div>
+    ),
   },
 ];
 
 export function LimitsStackedCards() {
   const [order, setOrder] = useState<number[]>([0, 1, 2, 3, 4, 5]);
   const [shufflingCard, setShufflingCard] = useState<number | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
   const isTransitioning = useRef(false);
 
+  // Snappy "POP" shuffle: lifts up dramatically with overshoot, drops behind, and settles
   const shuffleNext = useCallback(() => {
     if (isTransitioning.current) return;
     isTransitioning.current = true;
@@ -153,201 +252,100 @@ export function LimitsStackedCards() {
     const currentFront = order[0];
     setShufflingCard(currentFront);
 
-    // Step 1: Top card slides up and begins moving behind
+    // Pop phase: top card springs up and outwards
     setTimeout(() => {
       setOrder((prev) => [...prev.slice(1), prev[0]]);
       setShufflingCard(null);
 
-      // Cooldown before next transition can be triggered
       setTimeout(() => {
         isTransitioning.current = false;
-      }, 400);
-    }, 380);
+      }, 350);
+    }, 420);
   }, [order]);
 
-  const shufflePrev = useCallback(() => {
-    if (isTransitioning.current) return;
-    isTransitioning.current = true;
-
-    setOrder((prev) => [prev[prev.length - 1], ...prev.slice(0, prev.length - 1)]);
-    setTimeout(() => {
-      isTransitioning.current = false;
-    }, 400);
-  }, []);
-
-  // Auto-shuffle cycle every 3.8s when not hovered
+  // Continuously shuffles on its own (auto-cycles every 3.2 seconds)
   useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
+    const timer = setInterval(() => {
       shuffleNext();
-    }, 3800);
+    }, 3200);
 
-    return () => clearInterval(interval);
-  }, [isPaused, shuffleNext]);
-
-  const activeCard = LIMIT_CARDS[order[0]];
+    return () => clearInterval(timer);
+  }, [shuffleNext]);
 
   return (
-    <div
-      className="relative flex flex-col items-center justify-center w-full py-6 select-none"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-    >
+    <div className="relative flex flex-col items-center justify-center w-full py-8 select-none">
       {/* Visual stage for stacked cards */}
-      <div className="relative w-full max-w-[340px] sm:max-w-[420px] md:max-w-[460px] h-[370px] sm:h-[410px] md:h-[440px] flex items-end justify-center">
+      <div
+        onClick={shuffleNext}
+        className="relative w-full max-w-[340px] sm:max-w-[420px] md:max-w-[460px] h-[390px] sm:h-[430px] md:h-[460px] flex items-end justify-center cursor-pointer group"
+      >
         {order.map((cardIndex, stackPos) => {
           const card = LIMIT_CARDS[cardIndex];
           const isFront = stackPos === 0;
-          const isLeaving = shufflingCard === cardIndex;
+          const isPopping = shufflingCard === cardIndex;
 
-          // How far back in the stack this card sits (0 = front, 1 = behind, 2 = further behind, etc.)
-          // Cards are stepped vertically upwards so their headers peek out nicely
-          const yOffset = isLeaving ? -90 : -stackPos * 24;
-          const scale = isLeaving ? 1.04 : 1 - stackPos * 0.045;
-          const zIndex = isLeaving ? 60 : 50 - stackPos * 10;
-          const opacity = isLeaving ? 0.95 : Math.max(0.4, 1 - stackPos * 0.14);
-          const rotation = isLeaving ? 2 : (stackPos % 2 === 1 ? 0.8 : -0.8) * Math.min(stackPos, 3);
+          // Stepped vertical card stack geometry:
+          // Cards step upwards and scale slightly down so their headers peek through cleanly
+          const yOffset = isPopping ? -130 : -stackPos * 26;
+          const scale = isPopping ? 1.08 : 1 - stackPos * 0.04;
+          const zIndex = isPopping ? 70 : 50 - stackPos * 8;
+          const opacity = isPopping ? 0.95 : Math.max(0.4, 1 - stackPos * 0.12);
+          const rotation = isPopping ? -4 : (stackPos % 2 === 1 ? 1 : -1) * Math.min(stackPos * 0.8, 2.5);
 
           return (
             <div
               key={card.id}
-              onClick={() => {
-                if (isFront) {
-                  shuffleNext();
-                } else {
-                  // Bring this clicked card to front
-                  const clickedIdxInOrder = order.indexOf(cardIndex);
-                  if (clickedIdxInOrder > 0) {
-                    setOrder((prev) => [
-                      ...prev.slice(clickedIdxInOrder),
-                      ...prev.slice(0, clickedIdxInOrder),
-                    ]);
-                  }
-                }
-              }}
               style={{
                 transform: `translateY(${yOffset}px) scale(${scale}) rotate(${rotation}deg)`,
                 zIndex,
                 opacity,
-                transition: isLeaving
-                  ? "transform 360ms cubic-bezier(0.4, 0, 0.2, 1), opacity 360ms ease"
-                  : "all 480ms cubic-bezier(0.25, 1, 0.5, 1)",
+                transition: isPopping
+                  ? "transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 420ms ease"
+                  : "transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease",
               }}
-              className={`absolute bottom-0 w-full h-[300px] sm:h-[330px] md:h-[350px] rounded-[26px] p-6 sm:p-7 shadow-2xl cursor-pointer ${card.theme.bg} border ${card.theme.border} overflow-hidden backdrop-blur-md transition-shadow hover:shadow-cyan-500/10`}
+              className={`absolute bottom-0 w-full h-[320px] sm:h-[350px] md:h-[370px] rounded-[30px] p-6 sm:p-7 flex flex-col justify-between ${card.theme.bg} border ${card.theme.border} backdrop-blur-md overflow-hidden`}
             >
-              {/* Card visual badge / metallic texture accent */}
-              {card.theme.artAccent === "metallic" && (
-                <div className="pointer-events-none absolute -right-8 -top-8 w-44 h-44 rounded-full bg-gradient-to-br from-zinc-100/20 via-zinc-400/10 to-transparent blur-xl" />
-              )}
-              {card.theme.artAccent === "geometric" && (
-                <div className="pointer-events-none absolute -right-12 -top-12 w-48 h-48 opacity-20">
-                  <svg viewBox="0 0 100 100" className="w-full h-full fill-white">
-                    <path d="M50 0 L100 50 L50 100 L0 50 Z" />
-                  </svg>
-                </div>
-              )}
-              {card.theme.artAccent === "schwarz" && (
-                <div className="pointer-events-none absolute right-6 top-6 text-zinc-950/15 font-black text-4xl tracking-tighter uppercase font-mono">
-                  LOCK
-                </div>
-              )}
-              {card.theme.artAccent === "pattern" && (
-                <div className="pointer-events-none absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:14px_14px]" />
-              )}
-
-              {/* Card top bar: Tag and Pill */}
+              {/* Card Top Header: Tag and Badge Pill */}
               <div className="relative z-10 flex items-center justify-between">
-                <span className={`font-mono text-[11px] uppercase tracking-[0.2em] font-semibold ${card.theme.pillText}`}>
+                <span className="font-sans text-xs uppercase tracking-widest font-bold text-white/80">
                   {card.tag}
                 </span>
                 <span
-                  className={`rounded-full px-3 py-1 text-[10px] font-mono uppercase tracking-wider font-semibold ${card.theme.pillBg} ${card.theme.pillText}`}
+                  className={`font-sans rounded-full px-3 py-1 text-[11px] font-bold tracking-wider uppercase ${card.theme.pillBg} ${card.theme.pillText}`}
                 >
                   {card.badge}
                 </span>
               </div>
 
-              {/* Card Title & Metric */}
-              <div className="relative z-10 mt-5 sm:mt-6">
-                <h3 className={`text-xl sm:text-2xl font-bold tracking-tight ${card.theme.text}`}>
-                  {card.name}
-                </h3>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className={`text-2xl sm:text-3xl font-mono font-bold tracking-tight ${card.theme.text}`}>
-                    {card.metric}
-                  </span>
-                  <span className={`text-xs font-mono ${card.theme.subText}`}>
-                    · {card.metricSub}
-                  </span>
-                </div>
+              {/* Bespoke Illustration for this Card (No generic icons!) */}
+              <div className="relative z-10 my-auto">
+                {card.renderIllustration()}
               </div>
 
-              {/* Card Body */}
-              <p className={`relative z-10 mt-3 sm:mt-4 text-xs sm:text-sm leading-relaxed ${card.theme.subText}`}>
-                {card.body}
-              </p>
-
-              {/* Card bottom footer */}
-              <div className={`relative z-10 mt-5 pt-3 border-t ${card.theme.border} flex items-center justify-between`}>
-                <span className={`font-mono text-[10px] tracking-wider uppercase ${card.theme.subText} flex items-center gap-1.5`}>
-                  <ShieldCheck size={14} weight="bold" />
-                  {card.footerTag}
-                </span>
-                {isFront && (
-                  <span className={`text-[11px] font-mono flex items-center gap-1 font-medium ${card.theme.text} opacity-80`}>
-                    Tap to shuffle &rarr;
+              {/* Card Content in pure General Sans */}
+              <div className="relative z-10">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className={`font-sans text-xl sm:text-2xl font-bold tracking-tight ${card.theme.text}`}>
+                    {card.name}
+                  </h3>
+                  <span className={`font-sans text-base sm:text-lg font-bold ${card.theme.text}`}>
+                    {card.metric}
                   </span>
-                )}
+                </div>
+
+                <p className={`font-sans mt-2 text-xs sm:text-sm leading-relaxed ${card.theme.subText}`}>
+                  {card.body}
+                </p>
+              </div>
+
+              {/* Card Bottom Security Badge in General Sans */}
+              <div className="relative z-10 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] font-sans font-semibold opacity-75">
+                <span>{card.footerTag}</span>
+                {isFront && <span className="opacity-90">Tap to pop &rarr;</span>}
               </div>
             </div>
           );
         })}
-      </div>
-
-      {/* Control bar below stack */}
-      <div className="mt-8 flex flex-col sm:flex-row items-center justify-between w-full max-w-[340px] sm:max-w-[420px] md:max-w-[460px] gap-4 px-2">
-        <div className="flex items-center gap-2">
-          {LIMIT_CARDS.map((c, i) => {
-            const isActive = order[0] === i;
-            return (
-              <button
-                key={c.id}
-                onClick={() => {
-                  const targetIdx = order.indexOf(i);
-                  if (targetIdx > 0) {
-                    setOrder((prev) => [...prev.slice(targetIdx), ...prev.slice(0, targetIdx)]);
-                  }
-                }}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  isActive ? "w-8 bg-accent" : "w-2 bg-rule hover:bg-edge"
-                }`}
-                aria-label={`Jump to ${c.name}`}
-              />
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-ink-3">
-            {String(order[0] + 1).padStart(2, "0")} / {String(LIMIT_CARDS.length).padStart(2, "0")} · {activeCard.name}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={shufflePrev}
-              className="p-1.5 rounded-full border border-rule hover:bg-surface transition-colors text-ink-2 hover:text-ink"
-              aria-label="Previous card"
-            >
-              <CaretLeft size={16} weight="bold" />
-            </button>
-            <button
-              onClick={shuffleNext}
-              className="p-1.5 rounded-full border border-rule hover:bg-surface transition-colors text-ink-2 hover:text-ink"
-              aria-label="Next card"
-            >
-              <CaretRight size={16} weight="bold" />
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
