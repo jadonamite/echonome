@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useConnect } from "wagmi";
 import { useToast } from "@/components/toast";
@@ -21,8 +21,52 @@ export function LandingConnectButton({ onDark = false }: { onDark?: boolean }) {
   const { isConnected } = useAccount();
   const { connect, connectors, isPending, error } = useConnect();
   const { show } = useToast();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const injected = connectors[0];
+  // Close menu on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [menuOpen]);
+
+  const availableConnectors = connectors
+    .filter(
+      (c, i, arr) =>
+        arr.findIndex(
+          (x) => x.id === c.id || (x.name === c.name && x.name !== "Injected")
+        ) === i
+    )
+    .sort((a, b) => {
+      if (a.id === "injected") return 1;
+      if (b.id === "injected") return -1;
+      return 0;
+    });
+
+  function handleConnectClick() {
+    if (availableConnectors.length === 0) {
+      show({
+        tone: "error",
+        title: "No browser wallet found",
+        detail: "Install a wallet extension such as MetaMask or enable Brave Wallet, then reload.",
+      });
+      return;
+    }
+
+    if (availableConnectors.length === 1) {
+      connect({ connector: availableConnectors[0] });
+      return;
+    }
+
+    setMenuOpen((prev) => !prev);
+  }
 
   useEffect(() => {
     if (!error) return;
@@ -38,29 +82,53 @@ export function LandingConnectButton({ onDark = false }: { onDark?: boolean }) {
   const label = isConnected ? "Opening…" : isPending ? "Check your wallet" : "Connect";
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        if (!injected) {
-          show({
-            tone: "error",
-            title: "No browser wallet found",
-            detail: "Install a wallet extension such as MetaMask, then reload this page.",
-          });
-          return;
-        }
-        connect({ connector: injected });
-      }}
-      disabled={isPending || isConnected}
-      className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-85 disabled:opacity-70 sm:px-5 sm:py-2.5 ${
-        onDark ? "bg-white text-tile-ink" : "bg-tile-ink text-white"
-      }`}
-    >
-      {label}
-      {/* The word returns with the links, at lg. Below that the hamburger holds the left
-          of the bar and the mark is centred against it, so the button has to stay light. */}
-      {!isConnected && !isPending && <span className="hidden lg:inline"> wallet</span>}
-    </button>
+    <div className="relative inline-block" ref={menuRef}>
+      <button
+        type="button"
+        onClick={handleConnectClick}
+        disabled={isPending || isConnected}
+        className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-85 disabled:opacity-70 sm:px-5 sm:py-2.5 ${
+          onDark ? "bg-white text-tile-ink" : "bg-tile-ink text-white"
+        }`}
+      >
+        {label}
+        {!isConnected && !isPending && <span className="hidden lg:inline"> wallet</span>}
+      </button>
+
+      {menuOpen && availableConnectors.length > 1 && (
+        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-rule bg-surface p-1.5 shadow-2xl z-50">
+          <div className="px-2.5 py-1.5 text-[10px] font-mono text-ink-3 uppercase tracking-wider">
+            Select Wallet
+          </div>
+          <div className="space-y-1">
+            {availableConnectors.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  connect({ connector: c });
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-xs text-ink rounded-lg hover:bg-surface-raised transition text-left"
+              >
+                {c.icon ? (
+                  <img
+                    src={c.icon}
+                    alt=""
+                    className="w-5 h-5 rounded-sm object-contain flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-surface-raised border border-edge flex items-center justify-center text-[10px] font-mono text-ink-3 flex-shrink-0">
+                    W
+                  </div>
+                )}
+                <span className="font-medium truncate">{c.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
