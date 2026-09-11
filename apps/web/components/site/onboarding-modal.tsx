@@ -368,7 +368,7 @@ export function OnboardingModal() {
                 <button
                   type="button"
                   onClick={claimCollateral}
-                  disabled={busyAction !== null || Number(sttBalance) === 0}
+                  disabled={busyAction !== null}
                   className="flex-shrink-0 rounded-full border border-edge px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-raised disabled:opacity-50 transition flex items-center gap-1.5"
                 >
                   {busyAction === "usdc" ? (
@@ -391,7 +391,18 @@ export function OnboardingModal() {
               </p>
             )}
             {errorMsg && (
-              <p className="text-xs text-critical leading-relaxed">{errorMsg}</p>
+              <div className="space-y-1.5 rounded-lg border border-critical/20 bg-critical/5 p-3">
+                <p className="text-xs text-critical leading-relaxed">{errorMsg}</p>
+                <a
+                  href={SOMNIA_FAUCET_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-ink underline underline-offset-4 hover:opacity-80 transition"
+                >
+                  <span>Open Somnia Shannon Faucet</span>
+                  <ArrowSquareOut size={13} weight="bold" />
+                </a>
+              </div>
             )}
 
             {/* Next button */}
