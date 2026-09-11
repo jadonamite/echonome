@@ -111,7 +111,7 @@ export function TopTraders({ traders }: { traders: LeaderboardEntry[] }) {
     <section className="relative py-20 sm:py-28">
       <div className="mx-auto w-full max-w-7xl px-6 sm:px-10">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Top calibrated</h2>
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Ranked by edge</h2>
 
           {/*
             The reference puts a small white pill dropdown immediately beside the section

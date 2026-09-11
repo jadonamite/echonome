@@ -4,6 +4,7 @@ import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { CookieBanner } from "@/components/site/cookie-banner";
+import { OnboardingModal } from "@/components/site/onboarding-modal";
 
 /**
  * Two families, no more.
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-plane text-ink antialiased">
         <Providers>
           {children}
+          <OnboardingModal />
           <CookieBanner />
         </Providers>
       </body>

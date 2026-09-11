@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SignOut } from "@phosphor-icons/react";
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 import { shortAddress } from "@/lib/format";
@@ -157,16 +158,18 @@ export function WalletButton() {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <span className="whitespace-nowrap font-mono text-sm text-ink-2 tnum">
         {shortAddress(address!)}
       </span>
       <button
         type="button"
         onClick={() => disconnect()}
-        className="text-xs text-ink-3 underline underline-offset-4 hover:text-ink-2 transition"
+        title="Disconnect wallet"
+        aria-label="Disconnect wallet"
+        className="flex items-center justify-center h-7 w-7 rounded-full text-ink-3 hover:text-critical hover:bg-critical/10 border border-transparent hover:border-critical/20 transition"
       >
-        Disconnect
+        <SignOut size={16} weight="bold" />
       </button>
     </div>
   );

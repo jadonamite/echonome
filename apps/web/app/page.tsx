@@ -35,11 +35,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Echonome · Copy the traders who are right when they say they are",
   description:
-    "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+    "Copy-trading for DreamDEX Event Contracts on Somnia. Traders ranked on the edge they take over the prices they pay, not on P&L. Your collateral stays in a contract only you can withdraw from.",
   openGraph: {
     title: "Echonome · Copy the traders who are right when they say they are",
     description:
-      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+      "Copy-trading for DreamDEX Event Contracts on Somnia. Traders ranked on the edge they take over the prices they pay, not on P&L. Your collateral stays in a contract only you can withdraw from.",
     url: "https://echonome.namite.xyz",
     siteName: "Echonome",
   },
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Echonome · Copy the traders who are right when they say they are",
     description:
-      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
+      "Copy-trading for DreamDEX Event Contracts on Somnia. Traders ranked on the edge they take over the prices they pay, not on P&L. Your collateral stays in a contract only you can withdraw from.",
   },
 };
 
@@ -119,9 +119,9 @@ function Hero({
         </h1>
 
         <p className="mx-auto mt-7 max-w-[24rem] text-[13px] leading-[1.65] text-ink-3">
-          Non-custodial copy-trading powered by mathematical calibration. Mirror verified
-          forecasters on Somnia in real time, with your capital locked in your own smart
-          account.
+          Copy-trading for DreamDEX Event Contracts. Traders are ranked on edge: how far they
+          beat the prices they paid, across hundreds of settled calls. Your collateral sits in
+          a contract only you can withdraw from.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -228,8 +228,8 @@ function SocialFeed() {
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <p className="max-w-prose text-base leading-relaxed text-ink-2">
-          Every trade placed by top-calibrated forecasters broadcasts across the network the
-          millisecond it fills on Somnia. Inspect positions in real time, analyze the leader's
+          Every trade placed by the traders at the top of the Echo Rank broadcasts across the
+          network the millisecond it fills on Somnia. Inspect positions in real time, analyze the leader's
           probability curve, and mirror orders before the window closes.
         </p>
         <p className="max-w-prose text-base leading-relaxed text-ink-2">

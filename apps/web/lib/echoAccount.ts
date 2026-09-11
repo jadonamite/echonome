@@ -46,6 +46,7 @@ export const erc20Abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
   "function decimals() view returns (uint8)",
+  "function faucet(uint256 amount)",
 ]);
 
 /** Deployed on Shannon 2026-09-09; custody-verified on chain. A follower can read the code at
