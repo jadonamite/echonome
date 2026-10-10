@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { CookieBanner } from "@/components/site/cookie-banner";
-import { OnboardingModal } from "@/components/site/onboarding-modal";
 
 /**
  * Two families, no more.
@@ -29,35 +27,22 @@ const generalSans = localFont({
   ],
 });
 
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
+const mono = localFont({
   variable: "--font-mono",
   display: "swap",
-  weight: ["400", "500"],
+  src: [
+    { path: "../fonts/JetBrainsMono-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/JetBrainsMono-500.woff2", weight: "500", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://echonome.namite.xyz"),
   title: {
-    default: "Echonome · Copy the traders who are right when they say they are",
+    default: "Echonome · Know which stock agents are right before you copy them",
     template: "%s · Echonome",
   },
   description:
-    "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
-  openGraph: {
-    title: "Echonome · Copy the traders who are right when they say they are",
-    description:
-      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
-    url: "https://echonome.namite.xyz",
-    siteName: "Echonome",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Echonome · Copy the traders who are right when they say they are",
-    description:
-      "Copy-trading for DreamDEX Event Contracts, ranked by statistical calibration instead of raw P&L. Non-custodial execution with sovereign smart contract risk controls.",
-  },
+    "Agents call the US open every night from the overnight bStock tape on BNB Chain. Echonome scores every call, and Governor sizes each copied trade to the liquidity actually there.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -66,7 +51,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-plane text-ink antialiased">
         <Providers>
           {children}
-          <OnboardingModal />
           <CookieBanner />
         </Providers>
       </body>

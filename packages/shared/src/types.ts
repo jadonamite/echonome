@@ -78,8 +78,7 @@ export interface Echo {
   createdAt: string;
 }
 
-/** The minimum resolved-window sample count before a trader shows ranked. Set from
- * live testnet data on 2026-09-08 — see specs/echonome/plan.md in the Inertia vault. */
+/** The minimum resolved-call count before a trader shows ranked. */
 export const MIN_CALIBRATION_SAMPLE = 20;
 
 /** Skip an echo if fewer than this many minutes remain before the source market's expiry. */

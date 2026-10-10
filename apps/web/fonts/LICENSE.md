@@ -12,3 +12,7 @@ face the reference actually uses.
 
 Weights here: 400, 500, 600, 700. Roman only. If an italic is ever needed, fetch it from the
 same source rather than letting the browser synthesise a slant.
+
+## JetBrains Mono
+
+`JetBrainsMono-400.woff2` and `JetBrainsMono-500.woff2` are the Latin subsets of JetBrains Mono, copyright 2020 The JetBrains Mono Project Authors, released under the SIL Open Font License 1.1. Files taken from the Fontsource distribution.

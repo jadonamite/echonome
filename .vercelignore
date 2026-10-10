@@ -1,0 +1,10 @@
+.env
+.env*
+**/.env
+**/.env*
+workbench
+apps/worker
+packages/contracts
+.playwright-mcp
+.agents
+.claude

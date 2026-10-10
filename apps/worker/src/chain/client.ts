@@ -1,8 +1,7 @@
 import { SomniaMarkets, SOMNIA_TESTNET_ADDRESSES } from "@somnia-chain/markets-sdk";
 import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
 
-// Verified live against Shannon testnet 2026-09-08 — see specs/echonome/plan.md in the
-// Inertia vault for the probe that confirmed this venue and its cadence ladder.
+// Event Contracts venue on Shannon testnet.
 export const EC_VENUE_ID =
   process.env.EC_VENUE_ID ??
   "0x679795a0195a1b76cdebb7c51d74e058aee92919b8c3389af86ef24535e8a28c";

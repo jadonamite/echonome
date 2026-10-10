@@ -8,11 +8,10 @@ import { NavBar } from "@/components/site/nav-bar";
  * with a border-bottom header is a landing page that cannot use a photograph.
  */
 const NAV = [
-  { href: "/echo-rank", label: "Echo Rank" },
-  { href: "/feed", label: "Feed" },
-  { href: "/connect", label: "Connect" },
-  { href: "/me", label: "My echoes" },
-  { href: "/settings", label: "Settings" },
+  { href: "/board", label: "Board" },
+  { href: "/tonight", label: "Tonight" },
+  { href: "/desk", label: "Desk" },
+  { href: "/method", label: "Method" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SignOut } from "@phosphor-icons/react";
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
-import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
+import { bsc } from "viem/chains";
 import { shortAddress } from "@/lib/format";
 import { useToast } from "@/components/toast";
 import { describeWalletError } from "@/lib/wallet-errors";
@@ -144,14 +144,14 @@ export function WalletButton() {
     );
   }
 
-  if (chainId !== somniaShannon.id) {
+  if (chainId !== bsc.id) {
     return (
       <button
         type="button"
-        onClick={() => switchChain({ chainId: somniaShannon.id })}
+        onClick={() => switchChain({ chainId: bsc.id })}
         className="whitespace-nowrap rounded-full border border-warning px-4 py-1.5 text-sm text-warning hover:bg-surface-raised transition"
       >
-        Switch<span className="hidden lg:inline"> to Somnia Shannon</span>
+        Switch<span className="hidden lg:inline"> to BNB Chain</span>
         <span className="lg:hidden"> network</span>
       </button>
     );

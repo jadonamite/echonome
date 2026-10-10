@@ -28,8 +28,6 @@ import { EC_VENUE_ID, isTargetMarket } from "./chain/client.js";
  * 3. After the grant: the same call now succeeds, and the fill settles into the
  *    follower's own vault (confirmed by reading its balance), never the operator's.
  * 4. Follower revokes. The same call reverts again — immediately, no grace period.
- *
- * This is SC-001 and SC-005 from specs/echonome/spec.md, verified as fact, not asserted.
  */
 
 const indexerUrl = process.env.SHANNON_INDEXER_URL ?? "https://dev.smk.somnia.host/v1/graphql";

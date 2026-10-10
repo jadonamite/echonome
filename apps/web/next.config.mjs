@@ -1,7 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // packages/shared ships raw TS with no build step — let Next.js compile it directly.
-  transpilePackages: ["@echonome/shared"],
+  transpilePackages: ["@echonome/shared", "@echonome/stocks"],
+
+  // The stocks package uses Node-style ".js" import suffixes on its TypeScript sources.
+  webpack(config) {
+    config.resolve.extensionAlias = { ".js": [".ts", ".js"] };
+    return config;
+  },
 
   // Load the markets SDK from node_modules at runtime instead of bundling it into the
   // server build. Measured, not guessed: `loadMarkets(true)` completes in ~3.5s under plain

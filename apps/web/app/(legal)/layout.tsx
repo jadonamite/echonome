@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SiteFooter } from "@/components/site/footer";
+import { AppFooter } from "@/components/site/app-footer";
 import { LogoLockup } from "@/components/site/logo";
 
 const PAGES = [
@@ -26,7 +26,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
               <Link
                 key={page.href}
                 href={page.href}
-                className="text-sm text-ink-3 transition-colors hover:text-ink"
+                className="inline-flex min-h-[44px] items-center text-sm text-ink-3 transition-colors hover:text-ink"
               >
                 {page.label}
               </Link>
@@ -51,7 +51,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
         </article>
       </main>
 
-      <SiteFooter />
+      <AppFooter />
     </div>
   );
 }

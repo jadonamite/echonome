@@ -4,10 +4,7 @@ import { createLogger } from "../logger.js";
 const log = createLogger("calibration");
 
 /**
- * Calibration engine — retargeted from ~/Projects/jadonamite/delta-agent, which runs
- * this exact discipline against Polymarket's structurally identical 5-minute Up/Down
- * markets. Brier score only for the foundational pass (T016); reliability buckets
- * land in P2 (T025) — see specs/echonome/tasks.md.
+ * Calibration engine: Brier score over resolved binary calls.
  *
  * A strictly proper scoring rule: a trader maximises their expected score only by
  * reporting their true belief. Lower is better; 0 is a perfect forecaster, 0.25 is
@@ -30,12 +27,6 @@ export function brierScore(decisions: ResolvedDecision[]): number {
     // one — a binary fill's price is always quoted in YES terms no matter which side the
     // wallet took ("the NO leg enters at the complement", derivedReads.d.ts), and the
     // watcher stores exactly that. So no side-dependent conversion belongs here.
-    //
-    // BUG FIXED 2026-09-08: this line used to flip to `1 - p` for every 'down' decision,
-    // treating the stored value as "confidence in the side taken". That inverted the
-    // forecast on every down call — a trader who bought NO at a YES price of 0.96 (i.e.
-    // reading the market as 96% up) was being scored as if they had said 4% up. The
-    // comment above this code even stated the correct rule; the code contradicted it.
     const pUp = Number(d.implied_probability);
     const outcomeUp = d.settled_outcome === "up" ? 1 : 0;
     return (pUp - outcomeUp) ** 2;

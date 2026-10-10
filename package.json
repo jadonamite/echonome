@@ -2,7 +2,7 @@
   "name": "echonome",
   "private": true,
   "version": "0.1.0",
-  "description": "Copy-trading for DreamDEX Event Contracts, ranked by calibration instead of raw P&L.",
+  "description": "Nightly calls on tokenized US stocks on BNB Chain, scored by calibration, with trade sizes paced to live liquidity.",
   "type": "module",
   "workspaces": [
     "apps/*",
